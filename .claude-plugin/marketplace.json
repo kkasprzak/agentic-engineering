@@ -1,0 +1,14 @@
+{
+  "name": "agentic-engineering",
+  "owner": {
+    "name": "Karol Kasprzak"
+  },
+  "description": "Tools for building software with Claude Code agents — the parts that should not be improvised: how work is handed over, how a worker is stood up and stood down, and how a report is checked before it is believed.",
+  "plugins": [
+    {
+      "name": "agent-crew",
+      "source": "./agent-crew",
+      "description": "Run a crew of Claude Code worker sessions under one coordinator: start and retire them in cmux panels, clear a worker's context between tasks without losing its identity, write task briefs that survive a context wipe, and verify what comes back. Ships a backend-developer and a read-only tester role."
+    }
+  ]
+}

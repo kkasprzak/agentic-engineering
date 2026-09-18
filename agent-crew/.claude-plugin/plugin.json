@@ -1,0 +1,16 @@
+{
+  "name": "agent-crew",
+  "description": "Run a crew of Claude Code worker sessions under one coordinator: start and retire them in cmux panels, clear a worker's context between tasks without losing its identity, write task briefs that survive a context wipe, and verify what comes back instead of taking a worker's word for it. Ships two worker roles — a backend developer and a read-only tester.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Karol Kasprzak"
+  },
+  "keywords": [
+    "agents",
+    "orchestration",
+    "delegation",
+    "parallel",
+    "cmux",
+    "subagents"
+  ]
+}
