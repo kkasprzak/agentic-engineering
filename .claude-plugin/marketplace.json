@@ -9,6 +9,11 @@
       "name": "agent-crew",
       "source": "./agent-crew",
       "description": "Run a crew of Claude Code worker sessions under one coordinator: start and retire them in cmux panels, clear a worker's context between tasks without losing its identity, write task briefs that survive a context wipe, and verify what comes back. Ships a backend-developer and a read-only tester role."
+    },
+    {
+      "name": "peer-review",
+      "source": "./peer-review",
+      "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer deliberately given no context beyond the artifact itself. Read-only: reports defects, leaves the decision to you."
     }
   ]
 }

@@ -41,12 +41,32 @@ retire it.
 The two roles are useful on their own, with or without the session machinery — they are the worker's
 half of the same contract the coordinator skill describes.
 
+### `peer-review`
+
+A verdict on work that already exists. The thing being reviewed varies — a plan, a document, an
+uncommitted diff, the current branch's work — so the command resolves a target and hands the
+reviewer nothing but a path.
+
+| component | what it does |
+|---|---|
+| `/peer-review:fresh-eyes` *(command)* | Picks the target if you did not name one — a document from the conversation, the uncommitted diff, or the branch diff against the repository's default branch — says which it picked, and relays what comes back verbatim, including a plain "nothing found". |
+| `peer-review:fresh-eyes-review` *(agent)* | Reads the artifact and reports blunders, oversights, omissions, logical problems and bugs. Read-only by construction: no edit tools, and the only shell it holds is `git log`, `diff`, `show` and `status`. |
+
+**The reviewer is given no context on purpose.** Not a summary of the design, not why it was built
+that way, not what you were worried about. A helpful preamble hands your own reasoning straight back
+to you and the review becomes an echo — which is exactly the failure a fresh pair of eyes exists to
+avoid. This is also why it reports rather than fixes: what to do about a finding is a decision, and
+the reviewer is not the one making it.
+
 ## Install
 
 ```bash
 claude plugin marketplace add kkasprzak/agentic-engineering
 claude plugin install agent-crew@agentic-engineering
+claude plugin install peer-review@agentic-engineering
 ```
+
+The two plugins are independent — install either on its own.
 
 ## Requirements
 

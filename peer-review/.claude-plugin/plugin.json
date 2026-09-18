@@ -1,0 +1,14 @@
+{
+  "name": "peer-review",
+  "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer that was deliberately given no context beyond the artifact itself. Read-only: it reports defects and leaves what to do about them to you.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Karol Kasprzak"
+  },
+  "keywords": [
+    "review",
+    "critique",
+    "verification",
+    "subagent"
+  ]
+}
