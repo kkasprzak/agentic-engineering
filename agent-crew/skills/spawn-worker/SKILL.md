@@ -25,8 +25,10 @@ Claude Code in it as the named agent definition, and prints the surface ref.
 project scope, managed scope, or a plugin. The Agent tool's own list of available types is the
 reliable way to see what you can pass; do not assume a particular directory holds them.
 
-A role that arrives from a plugin is listed namespaced, as `plugin-name:role-name`. **The bare name
-still resolves** as long as it is unambiguous, so both spellings work — verified by launching each.
+**Pass the name exactly as that list spells it.** A role from a plugin is listed namespaced —
+`plugin-name:role-name` — and that spelling is always correct, whatever the role's origin. The two
+roles shipped here are therefore `agent-crew:backend-developer` and `agent-crew:tester`.
+
 An invalid name is not silently ignored: the CLI refuses and prints every name it does recognise,
 which is the fastest way to find out what a role is actually called here.
 

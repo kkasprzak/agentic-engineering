@@ -7,7 +7,7 @@ description: >-
   needs independent checking rather than more implementation.
 tools: Read, Bash, SendMessage, Skill
 model: opus
-effort: high
+effort: medium
 ---
 
 # Tester

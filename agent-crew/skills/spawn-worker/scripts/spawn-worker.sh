@@ -16,7 +16,8 @@ usage() {
   cat <<'USAGE'
 Usage: spawn-worker.sh --role <agent> --name <session-name> --dir <path> [--wait <seconds>] [--guard <skill>]
 
-  --role   agent definition to run the session as (e.g. backend-developer, tester)
+  --role   agent definition to run the session as, spelled exactly as the Agent
+           tool lists it, e.g. agent-crew:backend-developer or agent-crew:tester
   --name   session name; this is the address SendMessage will use
   --dir    working directory, normally a dedicated git worktree
   --wait   how long to wait for the panel to come up, in seconds (default 15).
