@@ -83,6 +83,13 @@ to do is the most important thing about it:
   pass `--force-worktree` once you have looked. The manual equivalent destroys it silently.
 - **It will not clear a worker mid-task,** or type into a panel that is showing a chooser rather
   than a prompt — an Enter sent there answers whatever was being asked.
+- **It will not put a name or label you did not vet into a command line.** Worker names, roles and
+  labels are typed into a live shell and submitted, so they are restricted to plain tokens — no
+  spaces, no leading hyphen, nothing that could add a flag or a starting prompt. A name lifted out
+  of a task brief is rejected rather than executed.
+- **It will not act when a name matches more than one panel.** It lists the candidates and stops,
+  because the alternative — taking whichever the terminal happened to list first — decides which
+  worker gets closed by accident.
 - **It does not sandbox anything.** A role described as read-only still holds `Bash`. Read the tools
   a role actually grants before trusting a description, including the ones here.
 

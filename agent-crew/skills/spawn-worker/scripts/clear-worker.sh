@@ -48,22 +48,28 @@ done
 [[ -n "$NAME" ]] || { echo "--name is required" >&2; usage >&2; exit 2; }
 command -v cmux >/dev/null || { echo "cmux not on PATH; this skill requires cmux" >&2; exit 3; }
 
-# Both of these end up typed into the panel, where a newline submits whatever
-# precedes it — so neither may carry control characters or shell punctuation.
-[[ "$NAME" =~ ^[A-Za-z0-9._:-][A-Za-z0-9\ ._:-]*$ ]] || { echo "--name may contain only letters, digits, spaces and . _ - : — got: ${NAME}" >&2; exit 2; }
-[[ -z "$LABEL" || "$LABEL" =~ ^[A-Za-z0-9._:/-][A-Za-z0-9\ ._:/-]*$ ]] || { echo "--label may contain only letters, digits, spaces and . _ - : / — got: ${LABEL}" >&2; exit 2; }
+# Both end up typed into the panel, where a newline submits whatever precedes
+# it. --name additionally has to be a single bare token, as it is elsewhere.
+[[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || { echo "--name must start with a letter or digit and contain only letters, digits and . _ - : (no spaces) — got: ${NAME}" >&2; exit 2; }
+[[ -z "$LABEL" || "$LABEL" =~ ^[A-Za-z0-9][A-Za-z0-9\ ._:/-]*$ ]] || { echo "--label must start with a letter or digit and contain only letters, digits, spaces and . _ - : / — got: ${LABEL}" >&2; exit 2; }
 
 SURFACE="$(
   cmux list-panels --json | python3 -c '
 import json, re, sys
 name = sys.argv[1]
+# Strip at most ONE leading status glyph. Every glyph cmux uses is non-ASCII
+# ("✳ name", "◑ name"), so requiring that keeps an ASCII-decorated title such
+# as "- bob" a genuinely different panel from "bob" instead of a collision.
+GLYPH = re.compile(r"^[^\x00-\x7F]\s+")
+hits = []
 for s in json.load(sys.stdin).get("surfaces", []):
     raw = (s.get("title") or "").strip()
-    # Panels carry a leading status glyph ("✳ name"); drop it, then match the
-    # whole title. A suffix match would let --name bob select "spongebob".
-    if raw == name or re.sub(r"^[^\w]+\s*", "", raw) == name:
-        print(s.get("ref", ""))
-        break
+    if raw == name or GLYPH.sub("", raw) == name:
+        hits.append((s.get("ref", ""), raw))
+if len(hits) > 1:
+    sys.stderr.write("AMBIGUOUS: " + ", ".join(f"{r} [{t}]" for r, t in hits) + "\n")
+elif hits:
+    print(hits[0][0])
 ' "$NAME"
 )" || true
 
@@ -74,9 +80,18 @@ for s in json.load(sys.stdin).get("surfaces", []):
   exit 4
 }
 
-SCREEN="$(cmux read-screen --surface "$SURFACE" 2>&1 || true)"
+SCREEN="$(cmux read-screen --surface "$SURFACE" 2>/dev/null)" || SCREEN=""
 
 if [[ "$FORCE" -eq 0 ]]; then
+  # A guard that cannot see the screen has not passed, it has abstained. Left to
+  # fall through, an unreadable panel would take a blind Enter — the exact thing
+  # these checks exist to prevent.
+  if [[ -z "${SCREEN// /}" ]]; then
+    echo "could not read ${NAME}'s screen — not clearing." >&2
+    echo "Without the screen there is no way to tell a prompt from a dialog, and" >&2
+    echo "Enter sent at a dialog answers it. Look at the panel, then --force." >&2
+    exit 5
+  fi
   # A spinner line like "Noodling… (24s · ↓ 291 tokens)" means mid-turn.
   if printf '%s' "$SCREEN" | grep -qE '…[[:space:]]*\([0-9]+s'; then
     echo "${NAME} is mid-turn — not clearing." >&2

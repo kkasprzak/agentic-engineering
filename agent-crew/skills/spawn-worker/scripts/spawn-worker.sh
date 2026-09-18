@@ -46,10 +46,18 @@ done
 [[ -d "$DIR" ]] || { echo "no such directory: $DIR" >&2; exit 2; }
 
 # The launch line below is TYPED INTO A LIVE SHELL and submitted with Enter, so
-# anything interpolated into it is executable. A coordinator that lifts a worker
-# name out of a task brief would otherwise be one `;` away from running it.
-[[ "$ROLE" =~ ^[A-Za-z0-9._:-]+$ ]] || { echo "--role may contain only letters, digits and . _ - : — got: ${ROLE}" >&2; exit 2; }
-[[ "$NAME" =~ ^[A-Za-z0-9._:-][A-Za-z0-9\ ._:-]*$ ]] || { echo "--name may contain only letters, digits, spaces and . _ - : — got: ${NAME}" >&2; exit 2; }
+# anything interpolated into it is executable. Blocking shell punctuation is not
+# enough: a space and a hyphen are sufficient on their own. A name of
+# `w1 --dangerously-skip-permissions` adds a flag to the command, and
+# `w1 do something` becomes a starting prompt for a worker holding a full shell.
+# Hence no spaces, and the first character must be alphanumeric so nothing can
+# begin with a hyphen and be read as a flag.
+VALID_TOKEN='^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+[[ "$ROLE" =~ $VALID_TOKEN ]] || { echo "--role must start with a letter or digit and contain only letters, digits and . _ - : — got: ${ROLE}" >&2; exit 2; }
+[[ "$NAME" =~ $VALID_TOKEN ]] || { echo "--name must start with a letter or digit and contain only letters, digits and . _ - : (no spaces) — got: ${NAME}" >&2; exit 2; }
+# WAIT reaches $(( ... )), where bash evaluates command substitution: an
+# unvalidated `x[$(...)]` would run in THIS shell, not in the worker's.
+[[ "$WAIT" =~ ^[0-9]+$ ]] || { echo "--wait must be a whole number of seconds — got: ${WAIT}" >&2; exit 2; }
 command -v cmux >/dev/null || { echo "cmux not on PATH; this skill requires cmux" >&2; exit 3; }
 [[ -S "${CMUX_SOCKET_PATH:-}" ]] || { echo "cmux socket not found at CMUX_SOCKET_PATH=${CMUX_SOCKET_PATH:-unset}" >&2; exit 3; }
 
@@ -61,13 +69,15 @@ SURFACE="$(printf '%s\n' "$CREATED" | grep -o 'surface:[0-9]\+' | head -1)"
 
 # -n sets the SendMessage address. Without it the session is auto-named after
 # its directory and cannot be addressed predictably.
-LAUNCH="claude --agent ${ROLE} -n ${NAME} --permission-mode auto"
+# Single-quoted in the typed line as a second layer: the validation above
+# already excludes a quote, so nothing can close them.
+LAUNCH="claude --agent '${ROLE}' -n '${NAME}' --permission-mode auto"
 if [[ -n "$GUARD" ]]; then
   IFS=',' read -ra GUARDED <<< "$GUARD"
   for g in "${GUARDED[@]}"; do
     g="$(printf '%s' "$g" | tr -d '[:space:]')"
     [[ -n "$g" ]] || continue
-    [[ "$g" =~ ^[A-Za-z0-9._:-]+$ ]] || { echo "--guard entry is not a plain skill name: ${g}" >&2; exit 2; }
+    [[ "$g" =~ $VALID_TOKEN ]] || { echo "--guard entry is not a plain skill name: ${g}" >&2; exit 2; }
     LAUNCH="${LAUNCH} --disallowed-tools 'Skill(${g})'"
   done
 fi
