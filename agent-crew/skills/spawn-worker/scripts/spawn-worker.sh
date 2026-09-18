@@ -44,6 +44,12 @@ done
 
 [[ -n "$ROLE" && -n "$NAME" && -n "$DIR" ]] || { echo "--role, --name and --dir are required" >&2; usage >&2; exit 2; }
 [[ -d "$DIR" ]] || { echo "no such directory: $DIR" >&2; exit 2; }
+
+# The launch line below is TYPED INTO A LIVE SHELL and submitted with Enter, so
+# anything interpolated into it is executable. A coordinator that lifts a worker
+# name out of a task brief would otherwise be one `;` away from running it.
+[[ "$ROLE" =~ ^[A-Za-z0-9._:-]+$ ]] || { echo "--role may contain only letters, digits and . _ - : — got: ${ROLE}" >&2; exit 2; }
+[[ "$NAME" =~ ^[A-Za-z0-9._:-][A-Za-z0-9\ ._:-]*$ ]] || { echo "--name may contain only letters, digits, spaces and . _ - : — got: ${NAME}" >&2; exit 2; }
 command -v cmux >/dev/null || { echo "cmux not on PATH; this skill requires cmux" >&2; exit 3; }
 [[ -S "${CMUX_SOCKET_PATH:-}" ]] || { echo "cmux socket not found at CMUX_SOCKET_PATH=${CMUX_SOCKET_PATH:-unset}" >&2; exit 3; }
 
@@ -60,7 +66,9 @@ if [[ -n "$GUARD" ]]; then
   IFS=',' read -ra GUARDED <<< "$GUARD"
   for g in "${GUARDED[@]}"; do
     g="$(printf '%s' "$g" | tr -d '[:space:]')"
-    [[ -n "$g" ]] && LAUNCH="${LAUNCH} --disallowed-tools 'Skill(${g})'"
+    [[ -n "$g" ]] || continue
+    [[ "$g" =~ ^[A-Za-z0-9._:-]+$ ]] || { echo "--guard entry is not a plain skill name: ${g}" >&2; exit 2; }
+    LAUNCH="${LAUNCH} --disallowed-tools 'Skill(${g})'"
   done
 fi
 

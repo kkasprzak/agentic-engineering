@@ -48,13 +48,20 @@ done
 [[ -n "$NAME" ]] || { echo "--name is required" >&2; usage >&2; exit 2; }
 command -v cmux >/dev/null || { echo "cmux not on PATH; this skill requires cmux" >&2; exit 3; }
 
+# Both of these end up typed into the panel, where a newline submits whatever
+# precedes it — so neither may carry control characters or shell punctuation.
+[[ "$NAME" =~ ^[A-Za-z0-9._:-][A-Za-z0-9\ ._:-]*$ ]] || { echo "--name may contain only letters, digits, spaces and . _ - : — got: ${NAME}" >&2; exit 2; }
+[[ -z "$LABEL" || "$LABEL" =~ ^[A-Za-z0-9._:/-][A-Za-z0-9\ ._:/-]*$ ]] || { echo "--label may contain only letters, digits, spaces and . _ - : / — got: ${LABEL}" >&2; exit 2; }
+
 SURFACE="$(
   cmux list-panels --json | python3 -c '
-import json, sys
+import json, re, sys
 name = sys.argv[1]
 for s in json.load(sys.stdin).get("surfaces", []):
-    title = (s.get("title") or "").strip()
-    if title.endswith(name) or title == name:
+    raw = (s.get("title") or "").strip()
+    # Panels carry a leading status glyph ("✳ name"); drop it, then match the
+    # whole title. A suffix match would let --name bob select "spongebob".
+    if raw == name or re.sub(r"^[^\w]+\s*", "", raw) == name:
         print(s.get("ref", ""))
         break
 ' "$NAME"

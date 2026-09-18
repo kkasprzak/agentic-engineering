@@ -7,6 +7,7 @@ description: >-
   build.
 tools: Read, Write, Edit, Bash, SendMessage, Skill
 model: opus
+effort: medium
 ---
 
 # Backend developer

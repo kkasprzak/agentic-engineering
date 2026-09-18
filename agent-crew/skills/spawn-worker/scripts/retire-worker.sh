@@ -37,13 +37,16 @@ done
 command -v cmux >/dev/null || { echo "cmux not on PATH; this skill requires cmux" >&2; exit 3; }
 
 # Resolve the panel by its title, and capture its directory before it is gone.
+# Matching has to be exact: this is the one path that can delete a worktree, and
+# a suffix match would let --name bob select a panel called "spongebob".
 read -r SURFACE DIR < <(
   cmux list-panels --json | python3 -c '
-import json, sys
+import json, re, sys
 name = sys.argv[1]
 for s in json.load(sys.stdin).get("surfaces", []):
-    title = (s.get("title") or "").strip()
-    if title.endswith(name) or title == name:
+    raw = (s.get("title") or "").strip()
+    # Panels carry a leading status glyph ("✳ name"); drop it, then match whole.
+    if raw == name or re.sub(r"^[^\w]+\s*", "", raw) == name:
         print(s.get("ref", ""), s.get("requested_working_directory") or "")
         break
 ' "$NAME"
