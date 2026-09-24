@@ -30,6 +30,20 @@ reliable way to see what you can pass; do not assume a particular directory hold
 roles shipped here are therefore `agent-crew:backend-developer`, `agent-crew:tester` and
 `agent-crew:solution-architect`.
 
+**A role's `model:` reaches a spawned session; its `effort:` does not.** Verified by asking a
+running worker what it was on: the model came from the definition even though the script passes no
+`--model`, while the effort was the machine default. So effort has to be passed at spawn, and the
+role files here deliberately carry no `effort:` key — a setting that is silently ignored is worse
+than an absent one, because it reads as configured.
+
+Recommended effort per role, since it now lives here rather than in the definition:
+
+| role | effort | why |
+|---|---|---|
+| `agent-crew:backend-developer` | default | a scoped task with a written brief; the thinking was done upstream |
+| `agent-crew:tester` | default | mostly observation and running things, not deliberation |
+| `agent-crew:solution-architect` | `--effort high` | its whole output is judgement — sequencing, trade-offs, and deciding the task is the wrong one |
+
 An invalid name is not silently ignored: the CLI refuses and prints every name it does recognise,
 which is the fastest way to find out what a role is actually called here.
 

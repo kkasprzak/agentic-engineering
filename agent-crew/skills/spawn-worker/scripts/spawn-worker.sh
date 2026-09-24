@@ -10,16 +10,21 @@ ROLE=""
 NAME=""
 DIR=""
 WAIT=15
+EFFORT=""
 GUARD="spawn-worker,coordinate-workers"
 
 usage() {
   cat <<'USAGE'
-Usage: spawn-worker.sh --role <agent> --name <session-name> --dir <path> [--wait <seconds>] [--guard <skill>]
+Usage: spawn-worker.sh --role <agent> --name <session-name> --dir <path> [--effort <level>] [--wait <seconds>] [--guard <skill>]
 
   --role   agent definition to run the session as, spelled exactly as the Agent
            tool lists it, e.g. agent-crew:backend-developer or agent-crew:tester
   --name   session name; this is the address SendMessage will use
   --dir    working directory, normally a dedicated git worktree
+  --effort reasoning effort for the session, passed straight to the CLI.
+           A role definition's `effort:` does NOT reach a spawned session — only
+           `model:` does — so if a role is meant to run at anything other than
+           the machine default, it has to be passed here.
   --wait   how long to wait for the panel to come up, in seconds (default 15).
            This is a timeout, not a duration — the script returns as soon as
            the prompt appears, which is normally a few seconds.
@@ -36,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     --name)  NAME="${2:-}";  shift 2 ;;
     --dir)   DIR="${2:-}";   shift 2 ;;
     --wait)  WAIT="${2:-}";  shift 2 ;;
+    --effort) EFFORT="${2:-}"; shift 2 ;;
     --guard) GUARD="${2-}";  shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -55,6 +61,8 @@ done
 VALID_TOKEN='^[A-Za-z0-9][A-Za-z0-9._:-]*$'
 [[ "$ROLE" =~ $VALID_TOKEN ]] || { echo "--role must start with a letter or digit and contain only letters, digits and . _ - : — got: ${ROLE}" >&2; exit 2; }
 [[ "$NAME" =~ $VALID_TOKEN ]] || { echo "--name must start with a letter or digit and contain only letters, digits and . _ - : (no spaces) — got: ${NAME}" >&2; exit 2; }
+# EFFORT is interpolated into the same typed line, so it gets the same treatment.
+[[ -z "$EFFORT" || "$EFFORT" =~ $VALID_TOKEN ]] || { echo "--effort must be a plain level name — got: ${EFFORT}" >&2; exit 2; }
 # WAIT reaches $(( ... )), where bash evaluates command substitution: an
 # unvalidated `x[$(...)]` would run in THIS shell, not in the worker's.
 [[ "$WAIT" =~ ^[0-9]+$ ]] || { echo "--wait must be a whole number of seconds — got: ${WAIT}" >&2; exit 2; }
@@ -72,6 +80,9 @@ SURFACE="$(printf '%s\n' "$CREATED" | grep -o 'surface:[0-9]\+' | head -1)"
 # Single-quoted in the typed line as a second layer: the validation above
 # already excludes a quote, so nothing can close them.
 LAUNCH="claude --agent '${ROLE}' -n '${NAME}' --permission-mode auto"
+if [[ -n "$EFFORT" ]]; then
+  LAUNCH="${LAUNCH} --effort '${EFFORT}'"
+fi
 if [[ -n "$GUARD" ]]; then
   IFS=',' read -ra GUARDED <<< "$GUARD"
   for g in "${GUARDED[@]}"; do

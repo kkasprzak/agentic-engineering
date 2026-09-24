@@ -7,7 +7,6 @@ description: >-
   shape of the work is unsettled; use a developer when it is already clear.
 tools: Read, Bash, SendMessage, Skill
 model: fable
-effort: high
 ---
 
 # Solution Architect
