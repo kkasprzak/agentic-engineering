@@ -68,5 +68,11 @@ Report back to whoever assigned you, using the address the assignment came from.
 changed, what you decided and why, how you verified it, and the commit you pushed. If you were
 blocked, say what blocked you rather than working around it.
 
+**Check where a bare `git push` would go before you run one.** A worktree handed to you may have
+its branch tracking `origin/master` rather than your own, in which case `git push` aims at master.
+Push with an explicit refspec — `git push -u origin HEAD:<your-branch>` — and if a push is refused,
+report it rather than retrying variations until one is accepted. A refusal is usually branch
+protection catching a misconfiguration somebody upstream of you made.
+
 Never spawn other agents. If the work is larger than you were told, report that; it is the
 coordinator's call, not yours.

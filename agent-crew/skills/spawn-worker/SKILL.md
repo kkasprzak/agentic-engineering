@@ -64,6 +64,24 @@ same commit and tell them not to commit; then what branch each worktree sits on 
 Git refuses the same branch in two worktrees, so a third reviewer ends up detached — which is fine
 and requires no fix.
 
+**When you do create a branch, pass `--no-track`.** `git worktree add -b <name> <start-point>` sets
+the new branch to track the start point, so a worker whose `push.default` is `upstream` or `simple`
+has a bare `git push` aimed at *your start point* — usually `origin/master`. Three workers in one
+day hit this; each was stopped by branch protection, which is the only reason nothing landed on
+master. A repository without that rule would have taken the commit.
+
+Verified:
+
+```bash
+git worktree add -b probe path origin/master             # upstream: origin/master
+git worktree add --no-track -b probe path origin/master  # no upstream configured
+```
+
+With no upstream the worker's first `git push -u origin HEAD` creates the remote branch and points
+the local one at it, which is what you wanted anyway. Fix it at creation rather than telling each
+worker to push carefully — a rule that has to be remembered by every worker is a rule that will be
+missed by one.
+
 ## Retiring one
 
 `${CLAUDE_SKILL_DIR}/scripts/retire-worker.sh --name <name>` finds the panel by title and closes it. Add
