@@ -36,6 +36,14 @@ Write it for someone with no memory of this conversation, because that is what a
 session whose context can be wiped between tasks. State the objective, the files and interfaces in
 play, the acceptance criteria, and link outward for the reasoning rather than restating it.
 
+**When you cannot write the item yet, that is the signal to dispatch differently.** If you do not
+know which files are in play, or whether the change can land in steps, or whether the task as stated
+is even the right one, you are not ready to brief a developer — and briefing one anyway produces a
+confident implementation of the wrong shape. Send a `solution-architect` first. Its output is the
+items the rest of this loop consumes: an approach, a sequence, what was rejected and why, and the
+questions it could not settle. Verify those the same way you verify any other report; a plan is no
+more trustworthy for being about the future.
+
 **Corrections go into the item, not into a follow-up message.** When a decision changes after the
 body is written, append it to the item and say plainly that it overrides the body where they
 conflict. A correction that lives only in chat is invisible to the next reader, and to the same

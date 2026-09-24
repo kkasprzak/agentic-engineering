@@ -37,8 +37,9 @@ retire it.
 | `spawn-worker` *(skill)* | The session mechanics. Start a worker in a cmux panel as a given role, clear its conversation between tasks while keeping its name and address, and retire it — refusing to discard a worktree that still holds uncommitted or unpushed work. |
 | `agent-crew:backend-developer` *(role)* | Implements one scoped task end to end and reports honestly: full builds rather than filtered ones, counts read from the build summary with the before figure stated, a fix accompanied by a test that would have caught the bug, and a stop rather than a guess when the brief turns out to be wrong. |
 | `agent-crew:tester` *(role)* | Verifies someone else's work and reports what is true — evidence for every claim, an explicit "inconclusive" over a false pass, and a judgement on whether the tests would have failed before the fix. Reports findings; does not fix them. |
+| `agent-crew:solution-architect` *(role)* | Works out how a change should be made before anyone writes it — reads the code as it actually is, verifies the facts the plan will rest on rather than inheriting them, challenges the framing when the task is the wrong one, and sequences the work so it can land in steps instead of one lump. Produces a decision with its reasons, not a menu. Does not implement. |
 
-The two roles are useful on their own, with or without the session machinery — they are the worker's
+The three roles are useful on their own, with or without the session machinery — they are the worker's
 half of the same contract the coordinator skill describes.
 
 ### `peer-review`

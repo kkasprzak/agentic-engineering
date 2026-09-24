@@ -26,8 +26,9 @@ project scope, managed scope, or a plugin. The Agent tool's own list of availabl
 reliable way to see what you can pass; do not assume a particular directory holds them.
 
 **Pass the name exactly as that list spells it.** A role from a plugin is listed namespaced —
-`plugin-name:role-name` — and that spelling is always correct, whatever the role's origin. The two
-roles shipped here are therefore `agent-crew:backend-developer` and `agent-crew:tester`.
+`plugin-name:role-name` — and that spelling is always correct, whatever the role's origin. The three
+roles shipped here are therefore `agent-crew:backend-developer`, `agent-crew:tester` and
+`agent-crew:solution-architect`.
 
 An invalid name is not silently ignored: the CLI refuses and prints every name it does recognise,
 which is the fastest way to find out what a role is actually called here.
