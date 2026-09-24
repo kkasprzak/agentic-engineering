@@ -8,7 +8,7 @@
     {
       "name": "agent-crew",
       "source": "./agent-crew",
-      "description": "Run a crew of Claude Code worker sessions under one coordinator: start and retire them in cmux panels, clear a worker's context between tasks without losing its identity, write task briefs that survive a context wipe, and verify what comes back. Ships a backend-developer and a read-only tester role."
+      "description": "Run a crew of Claude Code worker sessions under one coordinator: start and retire them in cmux panels, clear a worker's context between tasks without losing its identity, write task briefs that survive a context wipe, and verify what comes back. Ships a backend-developer, a read-only tester, and a solution-architect role that shapes the work before anyone implements it."
     },
     {
       "name": "peer-review",
