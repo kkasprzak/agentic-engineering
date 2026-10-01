@@ -73,3 +73,4 @@ does not begin with `git`.
   targeted. Those differ only when pushing with `git -C`, which is rare in normal use.
 - **"Watch" is slightly ahead of the implementation.** The hook fires once, on the push; it does not
   hold a continuous watch. If a real monitor is added later, the name already fits.
+
