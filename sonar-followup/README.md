@@ -9,17 +9,18 @@ This plugin moves that from the person to the agent.
 
 ## What it does
 
-After any `git push` from a branch that has an open PR, the agent is told, by the harness rather
-than by you:
+Two pieces, each doing only its own job:
 
-1. Wait for the pipeline — specifically the job that runs the analysis.
-2. Read the findings for that PR.
-3. **Check the analysis is the new one.** Compare the findings' timestamps and line numbers against
-   the commit just pushed. A stale run reported as clean is the failure this step exists for.
-4. Fix what its own commits introduced, push again, repeat.
-5. Say what happened either way.
+- **A hook** (`PostToolUse` on `Bash`) that fires after a `git push` from a branch with an **open**
+  PR. It carries the PR number and nothing else: four lines naming the PR and pointing at the skill.
+- **A skill**, `check-pr-analysis`, holding the actual procedure — wait for the pipeline, read the
+  findings, **prove the analysis is not a stale run**, fix what your own commits caused, report.
 
-On every other command it prints nothing and changes nothing.
+The split matters. The hook's text enters context on every push, so it stays short; the skill body
+is only read when it is actually needed, and can be edited as Markdown instead of as a quoted shell
+heredoc. You can also invoke the skill yourself when no push triggered it.
+
+On every other command the hook prints nothing and changes nothing.
 
 ## Requirements
 

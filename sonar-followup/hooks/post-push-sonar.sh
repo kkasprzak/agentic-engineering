@@ -23,22 +23,10 @@ num=${pr%%$'\t'*}
 url=${pr##*$'\t'}
 
 read -r -d '' msg <<EOF || true
-A commit was just pushed to the branch of open PR #${num} (${url}).
-
-This work is NOT finished yet. Before you report it as done:
-
-1. Wait for that PR's pipeline to finish - specifically the job that runs the
-   static analysis (SonarQube / SonarCloud). Poll it in the background rather
-   than blocking.
-2. Read the analysis findings for the PR.
-3. Check you are looking at the NEW analysis, not a stale cached one: compare
-   the findings' creation timestamps and line numbers against the commit you
-   just pushed. Reporting a stale run as clean is the failure mode to avoid.
-4. Fix anything your own commits introduced, push again, and repeat until the
-   findings you caused are gone.
-5. Tell the user the outcome either way - clean or not.
-
-The user explicitly does not want to have to remember to ask for this.
+A commit was just pushed to the branch of open PR #${num} (${url}). This work is
+not finished until that push's static analysis has been read. Call the Skill tool
+with skill: "check-pr-analysis" and follow it for this PR. The user does not want
+to have to remember to ask for this.
 EOF
 
 jq -cn --arg msg "$msg" '{
