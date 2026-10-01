@@ -4,9 +4,9 @@ description: >-
   Turn a plan that has already been decided into tracker items an agent with no memory of the
   conversation can pick up, ordered by dependency and confirmed before anything is created. Trigger
   on "break this into tasks", "turn the plan into items", "create the work items for this", "what
-  order do we do this in", "prepare this for dispatch", "rozbij to na zadania", "zrób z tego
-  zadania", "co po kolei". Not for deciding the approach — that comes first, from a
-  solution-architect — and not for sizing work for a refinement conversation.
+  order do we do this in", "prepare this for dispatch", "break the plan down", "what goes first".
+  Not for deciding the approach — that comes first, from a solution-architect — and not for sizing
+  work for a refinement conversation.
 ---
 
 # Splitting decided work into items
