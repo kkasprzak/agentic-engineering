@@ -21,6 +21,10 @@ only the things that help cannot tell you:
   wrong place can write to another project's backlog
 - where the crew's "a worker has gone quiet" problem meets Beads' claim leases
 
+It also ships `validate-graph-plan.sh`, which turns the quiet failure into an exit code: it dry-runs
+a plan and compares what the plan declares against what would actually be created, so a graph that
+would land without its dependencies fails loudly instead of looking like a success.
+
 ## Install
 
 ```bash
