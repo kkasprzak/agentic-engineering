@@ -1,5 +1,5 @@
 ---
-name: check-pr-analysis
+name: check-sonar-analysis
 description: >-
   Read a pull request's SonarQube / SonarCloud analysis and prove it belongs to the commit that was
   just pushed, not the one before it. Trigger on "what does sonar say", "check sonar", "did that pass

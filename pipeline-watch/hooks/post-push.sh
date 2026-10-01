@@ -25,7 +25,7 @@ url=${pr##*$'\t'}
 read -r -d '' msg <<EOF || true
 A commit was just pushed to the branch of open PR #${num} (${url}). This work is
 not finished until that push's static analysis has been read. Call the Skill tool
-with skill: "check-pr-analysis" and follow it for this PR. The user does not want
+with skill: "check-sonar-analysis" and follow it for this PR. The user does not want
 to have to remember to ask for this.
 EOF
 

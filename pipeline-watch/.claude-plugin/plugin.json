@@ -1,0 +1,16 @@
+{
+  "name": "pipeline-watch",
+  "description": "Watches for pushes to an open pull request and reacts on its own. When one happens the agent is told to wait for the pipeline, read what it reported about that push, prove the result is not a stale run left over from the commit before, and fix what its own commits introduced — without anybody remembering to ask. Silent on every other command.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Karol Kasprzak"
+  },
+  "keywords": [
+    "pipeline",
+    "ci",
+    "pull-request",
+    "sonarqube",
+    "static-analysis",
+    "hook"
+  ]
+}

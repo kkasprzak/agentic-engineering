@@ -16,9 +16,9 @@
       "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer deliberately given no context beyond the artifact itself. Read-only: reports defects, leaves the decision to you."
     },
     {
-      "name": "sonar-followup",
-      "source": "./sonar-followup",
-      "description": "Stops a push to an open pull request from being the end of the job. After every push to a branch with an open PR, the agent is told to wait for the pipeline, read what the static analysis reported, check it is not looking at a stale run, and fix what its own commits introduced - without you having to remember to ask. Silent on every other command."
+      "name": "pipeline-watch",
+      "source": "./pipeline-watch",
+      "description": "Watches for pushes to an open pull request and reacts on its own. When one happens the agent is told to wait for the pipeline, read what it reported about that push, prove the result is not a stale run left over from the commit before, and fix what its own commits introduced - without anybody remembering to ask. Silent on every other command."
     }
   ]
 }

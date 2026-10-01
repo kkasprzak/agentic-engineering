@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-push-sonar.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-push.sh",
             "timeout": 20,
             "if": "Bash(git *)"
           }
