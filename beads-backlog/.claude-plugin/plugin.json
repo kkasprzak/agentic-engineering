@@ -1,0 +1,15 @@
+{
+  "name": "beads-backlog",
+  "description": "The backlog agent-crew's workers pull from, held in Beads. agent-crew names the moves in the abstract — find existing work, create an item, link a dependency, claim one, close it, record what was learned — and this plugin knows how to make them with `bd`, so a coordinator drives a real store instead of asking which one to use. Swap it for another provider to change store without touching the crew.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Karol Kasprzak"
+  },
+  "keywords": [
+    "beads",
+    "backlog",
+    "agent-crew",
+    "dependencies",
+    "work-items"
+  ]
+}

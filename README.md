@@ -42,6 +42,22 @@ retire it.
 The three roles are useful on their own, with or without the session machinery — they are the worker's
 half of the same contract the coordinator skill describes.
 
+### `beads-backlog`
+
+`agent-crew` names the moves; a backlog plugin knows how to make them. The crew says *the tracker*
+and *a task item* on purpose, so the store stays a choice — installing this one makes that choice
+[Beads](https://github.com/gastownhall/beads), driven by `bd`. Swap the plugin to change store; the
+crew does not change.
+
+| component | what it does |
+|---|---|
+| `drive-the-backlog` *(skill)* | Binds the crew's abstract backlog to beads, and then gets out of the way — `bd` is built agent-first and ships its own agent context (`bd prime`), so the skill points there rather than copying it. What it does carry is what that help does not: the `--graph` plan schema, the way that plan fails quietly, which database `bd` is actually about to write to, and where the crew's "a worker has gone quiet" meets Beads' claim leases. |
+
+**A dry run that reports zero edges reads as success.** Dependencies written inside a node of a
+graph plan parse without complaint and create nothing, so the plan lands as a pile of unordered
+items and the only tell is a number in the dry-run output nobody reads. That one is why this plugin
+has a gotchas section at all.
+
 ### `peer-review`
 
 A verdict on work that already exists. The thing being reviewed varies — a plan, a document, an
@@ -86,11 +102,13 @@ plugin is the namespace: a check for failing tests or a coverage drop would sit 
 ```bash
 claude plugin marketplace add kkasprzak/agentic-engineering
 claude plugin install agent-crew@agentic-engineering
+claude plugin install beads-backlog@agentic-engineering
 claude plugin install peer-review@agentic-engineering
 claude plugin install pipeline-watch@agentic-engineering
 ```
 
-The three plugins are independent — install any one on its own.
+The plugins are independent — install any one on its own. `beads-backlog` is the exception worth
+naming: it is useful alone, but it exists to complete `agent-crew`.
 
 ## Requirements
 
