@@ -3,9 +3,9 @@ name: drive-backlog
 description: >-
   Binds agent-crew's abstract backlog to Beads: when the crew says "a task item", it means a bead,
   driven by `bd`. Trigger on "create a task/issue/bead", "what is ready to pick up", "claim this",
-  "close that one", "is there already work for this", "link these two", "stwórz zadanie", "weź
-  zadanie", "zamknij zadanie", and whenever a coordinator needs to act on the backlog rather than
-  talk about it. The store side only — how work should be cut into items is a separate job.
+  "close that one", "is there already work for this", "link these two", "what is blocking this",
+  and whenever a coordinator needs to act on the backlog rather than talk about it. The store side
+  only — how work should be cut into items is a separate job.
 ---
 
 # The backlog is Beads
