@@ -11,8 +11,9 @@ dashboard, then tell the agent to go back and fix it. This plugin takes the pers
 
 Two pieces, each doing only its own half:
 
-- **A hook** (`PostToolUse` on `Bash`) — the watching half. Fires after a `git push` from a branch
-  with an **open** PR, carrying nothing but the PR number and a pointer at the skill.
+- **A hook** (`PostToolUse` on `Bash`) — the watching half. Fires after a `git push` that actually
+  reached the remote, from a branch with an **open** PR, carrying nothing but the PR number and a
+  pointer at the skill.
 - **A skill** — the reacting half. `check-sonar-analysis` holds the procedure: wait for the
   pipeline, read the findings, **prove the analysis is not a stale run**, fix what your own commits
   caused, report either way.
@@ -53,6 +54,14 @@ If `gh` or `jq` is missing, the hook exits quietly instead of failing the tool c
 claude plugin marketplace add kkasprzak/agentic-engineering
 claude plugin install pipeline-watch@agentic-engineering
 ```
+
+## When it stays quiet
+
+A push that moved nothing starts no pipeline, so following up on it would read the *previous*
+commit's analysis — the exact failure above, caused by the thing meant to prevent it. The hook
+therefore says nothing for `--dry-run`, for `Everything up-to-date`, or for a rejected push. It also
+says nothing when the branch has no open PR, when the PR is already merged, and for any command that
+does not begin with `git`.
 
 ## Known gaps
 
