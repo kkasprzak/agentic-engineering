@@ -51,7 +51,7 @@ crew does not change.
 
 | component | what it does |
 |---|---|
-| `drive-the-backlog` *(skill)* | Binds the crew's abstract backlog to beads, and then gets out of the way — `bd` is built agent-first and ships its own agent context (`bd prime`), so the skill points there rather than copying it. What it does carry is what that help does not: the `--graph` plan schema, the way that plan fails quietly, which database `bd` is actually about to write to, and where the crew's "a worker has gone quiet" meets Beads' claim leases. Ships `validate-graph-plan.sh`, so the quiet failure is an exit code rather than a number nobody reads. |
+| `drive-backlog` *(skill)* | Binds the crew's abstract backlog to beads, and then gets out of the way — `bd` is built agent-first and ships its own agent context (`bd prime`), so the skill points there rather than copying it. What it does carry is what that help does not: the `--graph` plan schema, the way that plan fails quietly, which database `bd` is actually about to write to, and where the crew's "a worker has gone quiet" meets Beads' claim leases. Ships `validate-graph-plan.sh`, so the quiet failure is an exit code rather than a number nobody reads. |
 
 **A dry run that reports zero edges reads as success.** Dependencies written inside a node of a
 graph plan parse without complaint and create nothing, so the plan lands as a pile of unordered

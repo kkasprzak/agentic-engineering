@@ -1,5 +1,5 @@
 ---
-name: drive-the-backlog
+name: drive-backlog
 description: >-
   Binds agent-crew's abstract backlog to Beads: when the crew says "a task item", it means a bead,
   driven by `bd`. Trigger on "create a task/issue/bead", "what is ready to pick up", "claim this",
