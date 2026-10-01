@@ -59,15 +59,38 @@ to you and the review becomes an echo — which is exactly the failure a fresh p
 avoid. This is also why it reports rather than fixes: what to do about a finding is a decision, and
 the reviewer is not the one making it.
 
+### `pipeline-watch`
+
+The other reviewer is the pipeline, and nobody has to ask it for an opinion — it has one the moment
+you push. The cost is that reading it is a chore somebody has to remember, minutes after the moment
+they stopped thinking about the change. This plugin watches for the push and reacts on its own.
+
+| component | what it does |
+|---|---|
+| *(hook)* | The watching half. Fires after a `git push` from a branch with an **open** PR, and carries nothing but the PR number and a pointer at the skill — four lines, because this text enters context on every push. Not even spawned for commands that are not `git`, and silent when the branch has no open PR or the PR is already merged. |
+| `check-sonar-analysis` *(skill)* | The reacting half. Waits for the pipeline, reads the findings, and refuses to report anything until it has proved the analysis belongs to the commit that was just pushed. Fixes what the agent's own commits introduced; names what was already there and leaves it alone. Ships `wait-for-analysis.sh`, so waiting is a script rather than a polling loop improvised fresh each time. |
+
+**Zero findings is not an answer.** A findings query replies instantly and usually describes the
+*previous* commit, because the pipeline takes minutes — and an empty result looks exactly like a
+clean one. So does a green quality-gate badge, which survives from the run before. The skill accepts
+one of three proofs instead: a timestamp after the push, findings that were open now showing
+`CLOSED`, or line numbers matching the file as it currently stands. This is the same failure as the
+green build on a branch that could not compile — a stale artefact wearing the shape of success.
+
+`check-sonar-analysis` is named for SonarQube because that is what it was written against. The
+plugin is the namespace: a check for failing tests or a coverage drop would sit beside it as another
+`check-*` skill, watched by the same hook.
+
 ## Install
 
 ```bash
 claude plugin marketplace add kkasprzak/agentic-engineering
 claude plugin install agent-crew@agentic-engineering
 claude plugin install peer-review@agentic-engineering
+claude plugin install pipeline-watch@agentic-engineering
 ```
 
-The two plugins are independent — install either on its own.
+The three plugins are independent — install any one on its own.
 
 ## Requirements
 
