@@ -34,6 +34,7 @@ retire it.
 | component | what it does |
 |---|---|
 | `coordinate-workers` *(skill)* | The coordinator's half. How to write a task brief that still makes sense to a session with no memory of the conversation, what to put in the dispatch message and what to leave in the tracker, how to verify a report instead of believing it, when parallel work actually helps, and what to do when a worker goes quiet. |
+| `split-work` *(skill)* | The step between a decided plan and a dispatchable one. Turns a settled approach into items ordered by dependency, each startable by a session that never saw the discussion — sized by the working set it has to hold rather than by hours, checked against work that already exists, and presented for approval before anything is created. It decides what the items are; `coordinate-workers` says how to write one, and a backlog plugin creates them. |
 | `spawn-worker` *(skill)* | The session mechanics. Start a worker in a cmux panel as a given role, clear its conversation between tasks while keeping its name and address, and retire it — refusing to discard a worktree that still holds uncommitted or unpushed work. |
 | `agent-crew:backend-developer` *(role)* | Implements one scoped task end to end and reports honestly: full builds rather than filtered ones, counts read from the build summary with the before figure stated, a fix accompanied by a test that would have caught the bug, and a stop rather than a guess when the brief turns out to be wrong. |
 | `agent-crew:tester` *(role)* | Verifies someone else's work and reports what is true — evidence for every claim, an explicit "inconclusive" over a false pass, and a judgement on whether the tests would have failed before the fix. Reports findings; does not fix them. |
@@ -41,6 +42,12 @@ retire it.
 
 The three roles are useful on their own, with or without the session machinery — they are the worker's
 half of the same contract the coordinator skill describes.
+
+**An item that reads perfectly to you can be unstartable**, because you are reading it with the
+conversation still in your head. That is why `split-work` tests each item against a session that
+never saw the discussion rather than against your own understanding, and why it sizes by the working
+set an item forces an agent to hold rather than by how long it would take you. It names no tracker:
+the items land wherever a backlog plugin says they do.
 
 ### `beads-backlog`
 
