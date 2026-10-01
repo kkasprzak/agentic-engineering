@@ -3,8 +3,8 @@ name: check-sonar-analysis
 description: >-
   Read a pull request's SonarQube / SonarCloud analysis and prove it belongs to the commit that was
   just pushed, not the one before it. Trigger on "what does sonar say", "check sonar", "did that pass
-  sonar", "any new issues on this PR", "is the quality gate green", "sprawdź sonara", "co mówi
-  sonar", after any push to an open PR, and whenever a push hook says to follow up on an analysis.
+  sonar", "any new issues on this PR", "is the quality gate green", "did the analysis pass", after
+  any push to an open PR, and whenever a push hook says to follow up on an analysis.
   Not for running the analysis — the pipeline does that.
 ---
 
