@@ -65,6 +65,23 @@ graph plan parse without complaint and create nothing, so the plan lands as a pi
 items and the only tell is a number in the dry-run output nobody reads. That one is why this plugin
 has a gotchas section at all.
 
+### `madr-decisions`
+
+A decision record is dated. It says what was decided *then*, and that is the only thing it is good
+for — when the code moves on, the record does not become wrong, it becomes superseded.
+
+| component | what it does |
+|---|---|
+| `record-decision` *(skill)* | Carries what MADR does not: that an accepted record is history rather than documentation, that one record holds one decision, that a fact already written in a javadoc should be linked instead of copied, and that scope lives in the directory rather than in a field that can disagree with it. Says nothing about the format itself — that was measured, and a clean session reproduces MADR's five frontmatter keys and all eight headings unaided. Ships `new-decision.sh`, so the record is generated rather than recalled, and superseding changes one line of the old file instead of rewriting it. |
+
+**An agent updating a decision to match the code is destroying it.** One rewrote a record's original
+sentence, then added a note beneath reading "as written, this decision gave the event a third
+component" — referring to text it had just deleted. The document now disagrees with itself. Its own
+commit message gives the misconception away: *"DD-014 no longer documents a ChatMessagePosted
+signature that does not exist."* There was nothing to sync; there was a new record to write. This is
+the same failure as the green build on a branch that could not compile, wearing a different costume:
+the work looks done because the artifact changed.
+
 ### `peer-review`
 
 A verdict on work that already exists. The thing being reviewed varies — a plan, a document, an
@@ -110,6 +127,7 @@ plugin is the namespace: a check for failing tests or a coverage drop would sit 
 claude plugin marketplace add kkasprzak/agentic-engineering
 claude plugin install agent-crew@agentic-engineering
 claude plugin install beads-backlog@agentic-engineering
+claude plugin install madr-decisions@agentic-engineering
 claude plugin install peer-review@agentic-engineering
 claude plugin install pipeline-watch@agentic-engineering
 ```
