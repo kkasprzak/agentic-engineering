@@ -30,6 +30,12 @@ line of the old one: its status. Everything else in that file is history and is 
 it was. This is the behaviour the plugin exists for, and it is the assertion its tests are built
 around.
 
+**Refuses to let reasons be reconstructed.** You can write a convincing rationale for almost any
+choice, and nobody reading it next year can tell the difference between one that was sourced and one
+that merely sounds right. The skill treats an unsourced driver as a thing to ask about rather than
+fill in, because a record with invented reasoning is worse than no record — someone will build the
+next decision on top of it.
+
 **Keeps scope in the directory.**
 
 ```

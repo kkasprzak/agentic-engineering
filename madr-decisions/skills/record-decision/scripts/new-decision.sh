@@ -217,3 +217,5 @@ if [ -n "$old_file" ]; then
 fi
 
 echo "$path"
+echo "  → open it and replace the {placeholders} in place. Do not rewrite the file," >&2
+echo "    do not retype the frontmatter, and leave status at proposed." >&2
