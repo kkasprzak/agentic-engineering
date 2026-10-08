@@ -26,7 +26,7 @@ format does not carry.
   convincing rationale for almost any choice, and nobody reading it next year can tell it apart from
   one that was sourced. **If you cannot source a reason, ask — do not fill the gap.** The next
   decision gets built on top of this one, which is what makes an invented reason a liability rather
-  than merely a waste. Where to look is below.
+  than merely a waste. The thread you are in is where to look.
 - **Fill the skeleton in place; do not rewrite the file.** The script already wrote the frontmatter,
   the headings and the numbering. Open what it printed and replace the `{placeholders}` — nothing
   else. Rewriting the file from scratch means retyping the parts that were generated precisely so
@@ -51,50 +51,25 @@ format does not carry.
   written yet, either drop the section or say plainly that it is a commitment rather than a
   description — never let it read as something already in place.
 
-## Where the reasons come from
+## The conversation is the source
 
-Code shows what was built. It never shows what was considered and dropped, and that is the part most
-easily invented. Sources differ in whether they hold it at all.
+The reasons live in the thread where the decision was argued out. Code shows what was built and
+never what was considered and dropped, so going back to it for the alternatives produces invention
+rather than recovery.
 
-**Written at the time, and holds the alternatives.** A whole record can come from one of these.
+The thread is a good source: written, written at the time, and the options in it were often *tested*
+rather than merely floated. It has one trap that no other source has.
 
-1. **A review thread where someone challenged the choice.** The best of all: written, adversarial,
-   already tied to the code. What the reviewer pushed back on is exactly what a future reader will
-   try to "fix" back, which is the most valuable thing a record can say.
-2. **A conversation where the decision was made.** Test it for what was *decided*, not what was
-   *discussed* — people float an option and move on without choosing anything.
-3. **An architect's plan.** Holds the approach and the rejections by construction, but it is one
-   person's reasoning untested by disagreement, and it mixes design decisions with sequencing ones.
-   Only the design decisions belong in a record; the sequence is dead once the work lands.
-4. **An abandoned branch or a reverted commit.** Proves an option was really tried, and gives a
-   result rather than a prediction.
-
-**Recalled afterwards.** Usable, but say in the record that it was.
-
-5. **The person, asked.** The only source for a driver that lives nowhere else — "we thought we
-   could do X, the framework does not allow it". People also rationalise after the fact, and the
-   further from the decision, the more they do.
-
-**Never held the reasoning.** These cannot source `Considered Options` at all.
-
-6. The code as it stands. It fixes the outcome accurately and the alternatives not at all.
-7. A ticket, a commit message, general good practice, or your own sense of what seems reasonable.
-
-**When the only source is from the last group, say so in the record** — leave `Considered Options`
-empty with a note, or do not write the record yet. An empty section is honest. A filled one nobody
-can check is a falsehood with a very long shelf life.
-
-### A thread with an agent counts, with one extra rule
-
-It is written at the time, and it often holds options that were *tested* rather than merely floated,
-which puts it above most sources. But most of what it holds is the agent's own output, and an option
-an agent raised that nobody engaged with was never considered by anyone.
+**Most of what it holds is the agent's own output.** An option an agent raised that nobody engaged
+with was never considered by anyone, and recording it fills the document with suggestions dressed as
+decisions.
 
 **An option counts as considered when a person engaged with it, or when evidence killed it.**
-Everything else is noise produced along the way. This matters more here than for a meeting
-transcript, where every participant could decide — and it matters most when the agent writing the
-record is the one that generated the options, because it cannot tell its own suggestion apart from
-someone else's decision.
+Everything else is noise produced along the way. This matters most when the agent writing the record
+is the one that generated the options, because it cannot tell its own suggestion apart from someone
+else's decision.
+
+If a driver is not in the thread, ask for it. Do not reconstruct it from the code.
 
 ## Scope is the directory
 
