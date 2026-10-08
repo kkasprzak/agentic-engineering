@@ -1,7 +1,7 @@
 {
   "name": "agent-crew",
-  "description": "Run a crew of Claude Code worker sessions under one coordinator: start and retire them in cmux panels, clear a worker's context between tasks without losing its identity, write task briefs that survive a context wipe, and verify what comes back instead of taking a worker's word for it. Turns a decided plan into tracker items a fresh session can start, ordered by dependency and confirmed before anything is created. Ships three worker roles — a backend developer, a read-only tester, and a solution architect that shapes the work before anyone implements it.",
-  "version": "0.7.0",
+  "description": "Run a crew of Claude Code worker sessions under one coordinator: start and retire them in cmux panels, clear a worker's context between tasks without losing its identity, write task briefs that survive a context wipe, and verify what comes back instead of taking a worker's word for it. Turns a decided plan into tracker items a fresh session can start, ordered by dependency and confirmed before anything is created. Ships three worker roles — a developer, a read-only tester, and a solution architect that shapes the work before anyone implements it.",
+  "version": "0.8.0",
   "author": {
     "name": "Karol Kasprzak"
   },
