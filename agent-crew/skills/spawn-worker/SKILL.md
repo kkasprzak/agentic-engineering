@@ -27,7 +27,7 @@ reliable way to see what you can pass; do not assume a particular directory hold
 
 **Pass the name exactly as that list spells it.** A role from a plugin is listed namespaced —
 `plugin-name:role-name` — and that spelling is always correct, whatever the role's origin. The three
-roles shipped here are therefore `agent-crew:backend-developer`, `agent-crew:tester` and
+roles shipped here are therefore `agent-crew:developer`, `agent-crew:tester` and
 `agent-crew:solution-architect`.
 
 **A role's `model:` reaches a spawned session; its `effort:` does not.** Verified by asking a
@@ -40,7 +40,7 @@ Recommended effort per role, since it now lives here rather than in the definiti
 
 | role | effort | why |
 |---|---|---|
-| `agent-crew:backend-developer` | default | a scoped task with a written brief; the thinking was done upstream |
+| `agent-crew:developer` | default | a scoped task with a written brief; the thinking was done upstream |
 | `agent-crew:tester` | default | mostly observation and running things, not deliberation |
 | `agent-crew:solution-architect` | `--effort high` | its whole output is judgement — sequencing, trade-offs, and deciding the task is the wrong one |
 

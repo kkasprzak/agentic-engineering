@@ -18,7 +18,7 @@ usage() {
 Usage: spawn-worker.sh --role <agent> --name <session-name> --dir <path> [--effort <level>] [--wait <seconds>] [--guard <skill>]
 
   --role   agent definition to run the session as, spelled exactly as the Agent
-           tool lists it, e.g. agent-crew:backend-developer or agent-crew:tester
+           tool lists it, e.g. agent-crew:developer or agent-crew:tester
   --name   session name; this is the address SendMessage will use
   --dir    working directory, normally a dedicated git worktree
   --effort reasoning effort for the session, passed straight to the CLI.
