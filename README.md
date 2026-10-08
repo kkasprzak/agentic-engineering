@@ -72,7 +72,7 @@ for — when the code moves on, the record does not become wrong, it becomes sup
 
 | component | what it does |
 |---|---|
-| `record-decision` *(skill)* | Carries what MADR does not: that an accepted record is history rather than documentation, that one record holds one decision, that a fact already written in a javadoc should be linked instead of copied, and that scope lives in the directory rather than in a field that can disagree with it. Says nothing about the format itself — that was measured, and a clean session reproduces MADR's five frontmatter keys and all eight headings unaided. Ships `new-decision.sh`, so the record is generated rather than recalled, and superseding changes one line of the old file instead of rewriting it. |
+| `record-decision` *(skill)* | Carries what MADR does not: that an accepted record is history rather than documentation, that one record holds one decision, that the mechanism belongs in the code while what was decided and why belongs in the record, and that scope lives in the directory rather than in a field that can disagree with it. Says nothing about the format itself — that was measured, and a clean session reproduces MADR's five frontmatter keys and all eight headings unaided. Ships `new-decision.sh`, so the record is generated rather than recalled, and superseding changes one line of the old file instead of rewriting it. |
 
 **An agent updating a decision to match the code is destroying it.** One rewrote a record's original
 sentence, then added a note beneath reading "as written, this decision gave the event a third

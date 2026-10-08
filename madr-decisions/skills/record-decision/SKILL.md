@@ -43,9 +43,12 @@ format does not carry.
 - **One decision per record.** Test it against the title: a section that cannot be read as a
   consequence of the title belongs in its own record. When that test fires, **say so and ask** before
   creating the second record — what is worth recording separately is the author's call, not yours.
-- **If the fact is already in a javadoc, a test name or a type, link to it.** Copying it creates a
-  second place to drift, and the code is the copy that stays true. A record explains *why that
-  choice*, not *how it works*.
+- **A record says what was decided and why, not how it works.** The mechanism lives in the code and
+  changes with it; the record is dated and does not. State the decision in the record's own words —
+  it has to be readable without opening anything else — and leave the implementation out entirely,
+  rather than describing it or pointing at it. A record that leans on a link to a method name breaks
+  the first time somebody renames it, and a record that cannot be read on its own has already
+  failed. Where evidence is worth citing, put the number in the record; the benchmark will move.
 - **`Confirmation` describes how compliance is checked, and only if it already is.** Naming an
   ArchUnit rule or a test that does not exist states a fact that is false. If the check is not
   written yet, either drop the section or say plainly that it is a commitment rather than a
