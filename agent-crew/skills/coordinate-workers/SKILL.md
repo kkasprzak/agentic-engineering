@@ -4,7 +4,8 @@ description: >-
   Run work across several Claude Code worker sessions — write the task down, dispatch it, check what
   comes back, and fold it in. Use when you are handing work to other sessions and need it to survive
   their context being wiped, when a worker reports done and you have to decide whether to believe it,
-  when deciding what can run in parallel, or when a worker has gone quiet mid-task. Pairs with
+  when deciding what can run in parallel, or when a worker has stopped mid-task without reporting —
+  including one blocked by a connection error or a dialog nobody will answer. Pairs with
   spawn-worker, which starts and retires the sessions themselves.
   ONLY for a session that coordinates others. If your current task arrived as a message from another
   Claude session, you are a worker: report back, do not start coordinating.
@@ -68,6 +69,10 @@ Give them the numbers that let them recognise a wrong result — the current tes
 and commit they should be on. Without a reference figure, a worker cannot tell a broken run from a
 normal one, and will report whatever it saw.
 
+**Send it with `notify_when_idle: true`.** A worker whose turn dies sends no report, and the report
+is otherwise your only signal — so without the flag you wait on a session that is never coming back.
+*Knowing when a worker has stopped* covers what to do when the notice arrives.
+
 ## Verifying what comes back
 
 **Treat a report as a claim, not as evidence.** All of these happened in a single day:
@@ -106,15 +111,68 @@ Keep verification separate from implementation. Whoever wrote the code is the wo
 and a verifier who fixes what they find destroys the record of which finding came from where — they
 report and stop.
 
-## When a worker goes quiet
+## Knowing when a worker has stopped
 
-Workers stall: a usage limit resets mid-task, a background build is still running, or they are
-waiting for permission nobody will grant. Diagnose before nudging — look at their working directory
-for uncommitted changes and at the tracker for a claimed-but-open item — then tell them what you
-found and what to do about it. That is faster than asking them what happened.
+A worker whose turn dies never reports, so waiting for its report is waiting forever. `ListAgents`
+does not settle it either: a worker that finished and one whose turn died both read `idle`. It is
+worth a call to rule out the ones still `busy`, and worth nothing beyond that.
 
-Idle notifications are mostly noise. They fire at every pause inside a task, including one that
-simply finished a turn. The signal that work is done is the worker's own report.
+The subscription from *Dispatching* is what closes it. The notice fires once, when that session goes
+idle — measured on a five-step task, which produced one notice quoting the fifth step, not the first.
+It says the worker stopped, not that it succeeded.
+
+So when it arrives, ask one question: **did a report come too?** A report means the work is done, and
+you verify it the way you verify any other. No report means the worker stopped without finishing.
+
+**Then look at the panel.** `spawn-worker` ships `check-worker.sh --name <worker>`, which prints the
+screen; load that skill for the path and the permission to run it.
+
+| on screen | state | what to do |
+|---|---|---|
+| `Waiting for API response · will retry in …` | backing off, will return by itself | leave it alone |
+| `API Error: …`, then `· done HH:MM`, then a clean prompt | the turn died | resume it |
+| a spinner `…(24s` with no `done` | working | nothing |
+| `do you want`, `allow this`, `❯ 1.` | waiting on a dialog | a message queues behind it — this one needs the panel |
+| a usage or quota limit, with or without a reset time | waiting on the clock | leave it; resume after the reset |
+| anything else, unreadable, or empty | **unknown** | say so; never read it as "fine" |
+
+The first and last rows are the ones that cost you something to get wrong. A retry countdown is a
+recovery in progress, so treat it as working rather than stopped. And a screen matching no row is a
+finding, not a pass — the script prints what is there precisely so you can say you do not recognise
+it.
+
+**Look soon after the notice.** The screen is the current view, not a history: whatever that session
+does next pushes the explanation off the top. Observed on a panel checked later, after it had taken
+further work — the error that had been plainly visible was gone.
+
+**Resuming is a message, not a keystroke.** `SendMessage` to a stopped worker starts a new turn —
+verified on a session sitting on a dead turn, which went to `busy`, finished the work and reported
+back. The dialog is the exception, since a message only drains at the worker's next tool round.
+
+**Put `notify_when_idle: true` on the resume as well.** The subscription is one-shot and you have
+just spent it. Without a fresh one the second stall produces no notice, which is the failure you are
+in the middle of fixing.
+
+Say what you found when you resume one, rather than asking it what happened. Its working directory
+and the tracker tell you whether the task is half-landed — uncommitted changes, an item claimed but
+still open — and a worker that has just lost a turn knows less about that than you do.
+
+**Resume once per cause, then escalate.** Note each resume against the task. A second stall with the
+same cause is not a blip and is not yours to absorb: stop resuming and say so to whoever is
+accountable. Resuming without a limit turns a failure loop into something that reads as progress in
+a report — the same defect as a test that passes with and without the fix.
+
+**A worker wedged mid-turn never produces the notice**, because it never goes idle. That is the gap
+in all of this, and it is a real one. No threshold in minutes belongs here — it would be wrong for
+the next project — but `busy` far longer than the task warrants is worth a look, and it costs one
+`ListAgents` to see.
+
+**Treat the first notice of a session as a test that the signal reaches you at all.** `SendMessage`
+says it subscribes *"provided that session runs in the same permission class as this one (or is one
+this session spawned) or asserts none; otherwise it is shown to your user in the transcript"* —
+and `spawn-worker` launches workers under `--permission-mode auto`, which a coordinator need not be
+in. Only the matching case was ever exercised here. If no notice arrives from a worker you know has
+finished, assume it went to your user and say so, rather than waiting on it.
 
 ## Gotchas
 
