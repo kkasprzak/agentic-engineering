@@ -77,19 +77,91 @@ case "$status" in
   proposed) exit 0 ;;
 esac
 
-# Still open in every other sense but not yet decided? Only `proposed` is, so
-# everything reaching here is a record that has been settled.
-reason="This record's status is \"${status}\", so it is history rather than a draft.
+# --- work out what to tell the agent to run instead --------------------------
+#
+# A refusal that says "supersede it instead" and leaves the agent to work out
+# the identifier, the directory and the path to the script is a refusal it will
+# get wrong twice before getting it right, and each attempt costs a turn. Since
+# everything needed is derivable here, derive it.
 
-Editing it rewrites what was decided then to match what is true now, and leaves
-nobody able to tell which of the two the document is describing.
+record_dir=$(dirname "$file_path")
+record_id=$(basename "$file_path" | cut -c1-4)
+
+# Paths relative to where the session is working read better than absolute ones
+# and are what the agent has to type.
+cwd=$(printf '%s' "$input" | python3 -c '
+import json, sys
+try:    print(json.load(sys.stdin).get("cwd", ""))
+except Exception: pass
+' 2>/dev/null)
+shown_path="$file_path"
+case "$record_dir" in
+  "$cwd"/*) record_dir="${record_dir#"$cwd"/}" ;;
+esac
+case "$shown_path" in
+  "$cwd"/*) shown_path="${shown_path#"$cwd"/}" ;;
+esac
+
+# Naming the record's own directory as --root is correct whatever tier it sits
+# in, because numbering is per directory and a bare id resolves under the root.
+# Deciding instead whether the parent is a scope or the root would be a guess,
+# and a guess here produces a command that fails.
+script="${CLAUDE_PLUGIN_ROOT:-<plugin>}/skills/record-decision/scripts/new-decision.sh"
+supersede_cmd="${script} --root ${record_dir} --supersedes ${record_id} \"<title of the new decision>\""
+
+# The advice has to differ by status, because "supersede it" is wrong for three
+# of the four. Telling an agent to supersede an already-superseded record sends
+# it at a command the script refuses outright.
+case "$status" in
+  superseded\ by\ *)
+    replacement="${status#superseded by }"
+    what="This record was already replaced by ${replacement}, so it is two steps behind rather
+than one. Superseding it again is refused by the generator as well: it would
+repoint this record and leave ${replacement} claiming to replace something that
+no longer refers back to it.
+
+Read ${replacement} first. If the decision has changed again, supersede that one
+— follow the chain to its end and supersede the record at the end of it."
+    ;;
+  rejected)
+    what="This decision was declined, so there is nothing here to supersede — a rejected
+record is the account of a road not taken, and it stays that way.
+
+If the question is being reopened, write a new record with no --supersedes and
+refer to this one in its Context:
+
+  ${script} --root ${record_dir} \"<title of the new decision>\""
+    ;;
+  deprecated)
+    what="This record no longer applies and has been marked so. Editing it to describe
+what is true now would turn a retired decision into a live one.
+
+If something has taken its place, record that and supersede this one:
+
+  ${supersede_cmd}
+
+If nothing replaced it — it simply stopped mattering — leave it as it is."
+    ;;
+  *)
+    what="This record is \"${status}\": a decision that was taken, which makes it history
+rather than a draft. Editing it rewrites what was decided then to match what is
+true now, and leaves no reader able to tell which of the two they are looking at.
 
 If the decision has changed, record the new one:
-  <skill>/scripts/new-decision.sh --supersedes <id> \"New title\"
 
-That writes a new record and flips exactly one line of this one. If instead this
-is a correction to a record that was never right — a typo, a wrong link — that is
-a human's call to make outside this session."
+  ${supersede_cmd}
+
+That writes a new record and changes exactly one line of this one — its status."
+    ;;
+esac
+
+reason="Refused: ${shown_path} is a decision record and is no longer open for editing.
+
+${what}
+
+If this is instead a correction to a record that was never right — a typo, a
+broken link — that is a human's call to make outside this session. Say what you
+found and leave the file alone."
 
 python3 - "$reason" <<'PY'
 import json, sys

@@ -90,14 +90,50 @@ out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/notes.txt"}}' "$
 if [ -z "$out" ]; then ok "a non-markdown file is left alone"
 else bad "a non-markdown file is left alone" "guard produced: $out"; fi
 
-# The denial has to name the way forward, or the agent reads it as a wall and
-# starts looking for a way around.
-out=$(verdict accepted r-reason Edit >/dev/null; \
-      printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/r-reason.md"}}' "$WORK" | "$GUARD")
-case "$out" in
-  *--supersedes*) ok "the refusal points at --supersedes" ;;
-  *) bad "the refusal points at --supersedes" "reason did not mention it" ;;
-esac
+# --- the refusal has to be actionable ----------------------------------------
+#
+# A refusal that says only "no" is a refusal the agent will try to work around.
+# Everything the replacement command needs is derivable here, so these check it
+# was actually derived rather than left as a placeholder the agent has to fill.
+
+# A record in a nested directory, so --root has something to get wrong.
+mkdir -p "$WORK/docs/adr/chat"
+reason_for() {
+  printf '{"cwd":"%s","tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$WORK" "$1" \
+    | "$GUARD" 2>/dev/null \
+    | python3 -c 'import json,sys
+try:    print(json.load(sys.stdin)["hookSpecificOutput"]["permissionDecisionReason"])
+except Exception: pass'
+}
+has() { case "$3" in *"$2"*) ok "$1" ;; *) bad "$1" "not in the reason: $2" ;; esac; }
+hasnt(){ case "$3" in *"$2"*) bad "$1" "should not be in the reason: $2" ;; *) ok "$1" ;; esac; }
+
+printf -- '---\nstatus: "accepted"\n---\n' > "$WORK/docs/adr/0014-postgres.md"
+r=$(reason_for "$WORK/docs/adr/0014-postgres.md")
+has  "the refusal names the record's own id"      "--supersedes 0014" "$r"
+has  "the refusal names the record's directory"   "--root docs/adr"   "$r"
+has  "the path is shown relative to the session"  "docs/adr/0014-postgres.md" "$r"
+hasnt "no placeholder is left for the agent"      "<id>"              "$r"
+
+printf -- '---\nstatus: "accepted"\n---\n' > "$WORK/docs/adr/chat/0003-nested.md"
+r=$(reason_for "$WORK/docs/adr/chat/0003-nested.md")
+has "a nested record gets its own directory as --root" "--root docs/adr/chat" "$r"
+
+# Telling an agent to supersede an already superseded record aims it at a
+# command the generator refuses. It has to be sent along the chain instead.
+printf -- '---\nstatus: "superseded by 0021"\n---\n' > "$WORK/docs/adr/0007-old.md"
+r=$(reason_for "$WORK/docs/adr/0007-old.md")
+has   "a superseded record points at its replacement" "0021" "$r"
+hasnt "and does not tell the agent to supersede it"   "--supersedes 0007" "$r"
+
+# A rejected decision was never taken, so there is nothing to supersede. The
+# wording may still name the flag — "write a new record with no --supersedes" is
+# the clearest way to say it — so what must be absent is the command aimed at
+# this record, not the token.
+printf -- '---\nstatus: "rejected"\n---\n' > "$WORK/docs/adr/0005-declined.md"
+r=$(reason_for "$WORK/docs/adr/0005-declined.md")
+hasnt "a rejected record is not offered as a supersede target" "--supersedes 0005" "$r"
+has   "and a fresh record is offered instead" "--root docs/adr" "$r"
 
 pass=$(grep -c '^ok$'   "$RESULTS" || true)
 fail=$(grep -c '^fail$' "$RESULTS" || true)
