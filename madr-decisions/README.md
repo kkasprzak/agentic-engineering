@@ -31,6 +31,19 @@ it was. This is the behaviour the plugin exists for, and it is the assertion its
 around — `madr-decisions/tests/test-new-decision.sh`, which needs nothing but bash and exits non-zero
 when anything fails.
 
+**Refuses the edit that caused all this, at the moment it is attempted.** Generating a good record
+does nothing about an agent opening an accepted one six months later and bringing it up to date, and
+by then no skill is loaded to object. A `PreToolUse` hook sits on `Edit` and `Write` and reads the
+target's own status: `proposed` is a draft and stays editable, which is exactly what filling in a
+fresh skeleton is; anything else has been decided, and the edit is refused with a message naming
+`--supersedes` as the way forward. No path list to maintain and no configuration — the record says
+whether it is still open, and a human accepting it is what locks it.
+
+The hole in that: a file written through the shell. The harness fires `PreToolUse` for the Bash tool
+as a whole and not for a redirection inside it, so `sed -i` goes around the guard. Catching nine
+spellings of that and missing the tenth would read as cover without being it, so the guard does not
+try.
+
 **Refuses to let reasons be reconstructed.** You can write a convincing rationale for almost any
 choice, and nobody reading it next year can tell the difference between one that was sourced and one
 that merely sounds right. The skill treats an unsourced driver as a thing to ask about rather than
@@ -73,13 +86,19 @@ claude plugin install madr-decisions@agentic-engineering
 
 ## Requirements
 
-Nothing. Plain bash, no packages, no network.
+Bash and `python3`, no packages and no network. `python3` is there for one job: the guard hook parses
+the harness's JSON with it rather than grepping for a file path, because a path may contain spaces,
+quotes or backslashes and the grep version works until the day it does not.
 
 ## Known gaps
 
 - **Scope containment is not expressible.** If a scope logically contains another, the script cannot
   tell from the paths and will refuse the supersession. Write the new record at system scope.
 - **No index is generated.** The list of records and their statuses is still maintained by hand.
-- **Nothing validates a record after it is written.** Certainty here comes from generating a correct
-  skeleton, not from checking the result — a deliberate choice, since a check fires after the damage
-  and a generator prevents it.
+- **Nothing validates a record's contents after it is written.** Certainty about the *shape* comes
+  from generating the skeleton, and the guard hook protects a record once it is settled — but
+  nothing reads a filled-in record and judges whether what it says is any good. Nothing could.
+- **A record written entirely through the shell bypasses both.** The generator is not involved and
+  the guard never fires, since `PreToolUse` does not see inside a Bash command.
+- **A new record does not say what it supersedes.** The old record gains `superseded by <id>`; the
+  new one carries no pointer back. Following the chain forwards works, backwards does not.
