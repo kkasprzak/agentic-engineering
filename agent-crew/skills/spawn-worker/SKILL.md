@@ -13,7 +13,7 @@ description: >-
   ONLY for a session that coordinates others. If your current task arrived as a message from
   another Claude session, you are a worker, not a coordinator, and this skill is not for you —
   report back instead of spawning help.
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/spawn-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/retire-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/clear-worker.sh *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/spawn-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/retire-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/clear-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/check-worker.sh *)
 ---
 
 # Spawn a worker
@@ -82,6 +82,21 @@ the local one at it, which is what you wanted anyway. Fix it at creation rather 
 worker to push carefully — a rule that has to be remembered by every worker is a rule that will be
 missed by one.
 
+## Looking at one that stopped
+
+`${CLAUDE_SKILL_DIR}/scripts/check-worker.sh --name <worker> [--name <worker> ...]` prints each
+worker's screen, blank runs collapsed. It finds panels the same way the other scripts do, by tab
+title.
+
+It does not say what the screen means. `coordinate-workers` carries that table, because a screen is
+UI and UI drifts between releases: a pattern written into a script would keep reporting "fine" after
+the thing it matched stopped existing, while the same pattern written in prose merely goes stale
+where someone can see it. The one exception is a retry countdown, which it does flag — that is the
+single state where acting on it does damage rather than nothing.
+
+Reach for it only for a worker that stopped without reporting. A worker that is `busy` in
+`ListAgents` needs no inspection, and the screen is large enough that reading it is not free.
+
 ## Retiring one
 
 `${CLAUDE_SKILL_DIR}/scripts/retire-worker.sh --name <name>` finds the panel by title and closes it. Add
@@ -118,6 +133,16 @@ checks. That guard has already caught a panel sitting on a trust-this-folder pro
 Enter would have granted it.
 
 ## Gotchas
+
+**`ListAgents` reports `busy`, `idle` or `shell`, and `idle` hides the case you care about.** A
+worker that finished and a worker whose turn died on a connection error both read `idle` — verified
+by killing a session's turn and watching it sit there. So the status is a cheap way to rule out the
+ones still working and no help at all in telling a finished worker from a stopped one.
+
+**A dead turn stays dead.** The session prints `API Error: …`, closes the turn with `· done HH:MM`
+and returns to a clean prompt, where it waits indefinitely. Nothing in the CLI brings it back, and
+reconnecting the network does not either. A `SendMessage` does — it starts a new turn, verified end
+to end.
 
 **`--type agent-session` looks right and is a dead end.** It creates cmux's own agent surface, which
 never registers as a peer session, so `SendMessage` cannot reach it. Only a `terminal` surface
