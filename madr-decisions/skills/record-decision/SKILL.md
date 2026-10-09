@@ -6,6 +6,7 @@ description: >-
   decision is out of date", "supersede ADR-NNNN", "that record no longer matches the code", and
   whenever a choice was made for reasons that will not survive in anyone's head. Not for writing a
   design doc, a spec, or an explanation of how something works.
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/new-decision.sh *)
 ---
 
 # Recording a decision
@@ -90,16 +91,26 @@ refuses and says so.
 
 ## Making one
 
-The script lives beside this skill, at `scripts/new-decision.sh` **relative to the skill directory**,
-not to the repository you are working in. Run it from the repository root, since the paths it writes
-are relative to where it is invoked.
+Run it from the repository root — the paths it writes are relative to where it is invoked, while the
+script itself lives beside this skill:
 
 ```bash
-<skill>/scripts/new-decision.sh "Title"                   # system scope
-<skill>/scripts/new-decision.sh --scope chat "Title"      # narrowed
-<skill>/scripts/new-decision.sh --supersedes 0014 "Title" # replaces 0014
-<skill>/scripts/new-decision.sh --print "Title"           # skeleton to stdout, writes nothing
+${CLAUDE_SKILL_DIR}/scripts/new-decision.sh "Title"                   # system scope
+${CLAUDE_SKILL_DIR}/scripts/new-decision.sh --scope chat "Title"      # narrowed
+${CLAUDE_SKILL_DIR}/scripts/new-decision.sh --supersedes 0014 "Title" # replaces 0014
+${CLAUDE_SKILL_DIR}/scripts/new-decision.sh --print "Title"           # skeleton to stdout, writes nothing
+${CLAUDE_SKILL_DIR}/scripts/new-decision.sh --root docs/decisions "Title"  # records live elsewhere
 ```
+
+`${CLAUDE_SKILL_DIR}` resolves to this skill's own directory wherever the plugin is installed, so the
+path is never guessed. It is also what the `allowed-tools` grant in the frontmatter is written
+against — spelled any other way, every run asks for permission.
+
+**`--root` matters in a repository that already has records.** The default is `docs/adr/`, while
+MADR upstream says `docs/decisions/`, and plenty of repositories use neither. Check where the
+existing records live before creating one, because the script numbers from what it finds in the
+directory it is given: pointed at an empty directory beside the real ones, it starts again at `0000`
+and the numbering collides on sight.
 
 It picks the number, the path and the filename, and writes the frontmatter with the five MADR keys
 and nothing else. Superseding changes **one line** of the old record — its status — and leaves the

@@ -42,13 +42,23 @@ supersedes=""
 print_only=0
 title=""
 
+# Every option that takes a value checks the value is there before shifting past
+# it. Without that check a trailing `--scope` makes `shift 2` fail, and since
+# there is no `set -e` the loop spins on the same argument forever — the script
+# hangs rather than complaining, and an agent running it blocks until its tool
+# times out.
+need_value() {
+  [ "$2" -ge 2 ] || { echo "$1 needs a value after it" >&2; exit 1; }
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --scope)      scope="${2:-}"; shift 2 ;;
-    --supersedes) supersedes="${2:-}"; shift 2 ;;
-    --root)       root="${2:-}"; shift 2 ;;
+    --scope)      need_value --scope $#;      scope="$2";      shift 2 ;;
+    --supersedes) need_value --supersedes $#; supersedes="$2"; shift 2 ;;
+    --root)       need_value --root $#;       root="$2";       shift 2 ;;
     --print)      print_only=1; shift ;;
-    -h|--help)    sed -n '2,38p' "$0"; exit 0 ;;
+    -h|--help)    sed -n '2,36p' "$0"; exit 0 ;;
+    --)           shift; [ $# -gt 0 ] && title="$1"; break ;;
     -*)           echo "unknown option: $1" >&2; exit 1 ;;
     *)            title="$1"; shift ;;
   esac
@@ -56,8 +66,21 @@ done
 
 if [ -z "$title" ]; then
   echo 'usage: new-decision.sh [--scope <name>] [--supersedes <id>] [--print] "Title"' >&2
+  echo '       use -- before a title that starts with a dash' >&2
   exit 1
 fi
+
+# A scope is one directory name, not a path. Left unchecked, `--scope ../elsewhere`
+# writes outside the root entirely, and `--scope a/b` quietly builds a third tier —
+# which would make the identifier `a/b/0014` and break the promise that two tiers
+# and one subdirectory make identifiers unambiguous by construction.
+case "$scope" in
+  */*|..|.|*' '*)
+    echo "refusing: --scope must be a single directory name, got '$scope'" >&2
+    echo "  Scope is one level below $root/. A decision spanning more than one" >&2
+    echo "  module belongs at system scope, without --scope." >&2
+    exit 1 ;;
+esac
 
 if [ -n "$scope" ]; then dir="$root/$scope"; else dir="$root"; fi
 
@@ -101,10 +124,36 @@ if [ -n "$supersedes" ]; then
     echo "refusing: $old_file has no frontmatter to update" >&2
     exit 2
   fi
-  if ! grep -qE '^status:' "$old_file"; then
-    echo "refusing: $old_file has no status field" >&2
+
+  # Read status from the frontmatter only — the block between the first `---`
+  # and the next one. A plain grep matches a `status:` line inside a fenced
+  # example in the body too, and the rewrite further down would then edit the
+  # prose instead of the header.
+  old_status=$(awk '
+    NR == 1 && /^---$/ { infm = 1; next }
+    infm && /^---$/     { exit }
+    infm && /^status:/  { sub(/^status:[[:space:]]*/, ""); print; exit }
+  ' "$old_file")
+
+  if [ -z "$old_status" ]; then
+    echo "refusing: $old_file has no status field in its frontmatter" >&2
     exit 2
   fi
+
+  # Superseding something that was already superseded breaks the chain silently:
+  # the old record is repointed at the new one, and whatever superseded it first
+  # is left claiming to replace a record that no longer refers back to it. The
+  # record to supersede is the one at the end of the chain.
+  case "$old_status" in
+    *superseded\ by*)
+      {
+        echo "refusing: $supersedes is already $old_status"
+        echo "  Superseding it again would repoint it and leave the record that"
+        echo "  replaced it pointing at nothing. Supersede the current record"
+        echo "  instead — follow the chain to the end."
+      } >&2
+      exit 2 ;;
+  esac
 fi
 
 # --- next number, per directory ---------------------------------------------
@@ -201,19 +250,47 @@ if [ -e "$path" ]; then
   exit 1
 fi
 
-mkdir -p "$dir"
-printf '%s\n' "$skeleton" > "$path"
+# Every write is checked from here down. There is no `set -e`, so an unchecked
+# failure leaves the script printing the path it meant to create and exiting 0 —
+# a tool reporting work it did not do, which is the exact failure this plugin
+# was written to stop. It must not be the first thing the plugin does.
+
+if ! mkdir -p "$dir"; then
+  echo "refusing: cannot create $dir/" >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "$skeleton" > "$path"; then
+  echo "refusing: cannot write $path" >&2
+  rm -f "$path"
+  exit 1
+fi
 
 # --- flip the superseded record, and nothing else ---------------------------
 
 if [ -n "$old_file" ]; then
   tmp="$old_file.tmp.$$"
-  # Only the first status line, which is the one in the frontmatter.
-  awk -v repl="status: \"superseded by $ref\"" '
-    !done && /^status:/ { print repl; done=1; next }
-    { print }
-  ' "$old_file" > "$tmp" && mv "$tmp" "$old_file"
-  echo "$old_file  → superseded by $ref"
+  # Only the frontmatter's status line. The body may legitimately contain a
+  # `status:` line inside an example, and rewriting that would corrupt prose.
+  if awk -v repl="status: \"superseded by $ref\"" '
+       NR == 1 && /^---$/ { infm = 1; print; next }
+       infm && /^---$/     { infm = 0; print; next }
+       infm && !done && /^status:/ { print repl; done = 1; next }
+       { print }
+     ' "$old_file" > "$tmp" && mv "$tmp" "$old_file"; then
+    echo "$old_file  → superseded by $ref"
+  else
+    rm -f "$tmp"
+    # The new record exists but the old one was not flipped. Leaving both would
+    # produce two live records for one decision, which is worse than neither.
+    rm -f "$path"
+    {
+      echo "failed: could not update $old_file"
+      echo "  $path was removed again, so nothing was half-done."
+      echo "  Check the file is writable, then run this command once more."
+    } >&2
+    exit 1
+  fi
 fi
 
 echo "$path"

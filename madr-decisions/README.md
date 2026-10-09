@@ -28,7 +28,8 @@ number, the path and the filename, and writes the frontmatter with MADR's five k
 **Supersedes by writing, not editing.** `--supersedes` creates the new record and changes exactly one
 line of the old one: its status. Everything else in that file is history and is left byte-for-byte as
 it was. This is the behaviour the plugin exists for, and it is the assertion its tests are built
-around.
+around — `madr-decisions/tests/test-new-decision.sh`, which needs nothing but bash and exits non-zero
+when anything fails.
 
 **Refuses to let reasons be reconstructed.** You can write a convincing rationale for almost any
 choice, and nobody reading it next year can tell the difference between one that was sourced and one
