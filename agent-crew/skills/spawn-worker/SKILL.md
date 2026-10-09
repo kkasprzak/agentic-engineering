@@ -88,14 +88,9 @@ missed by one.
 worker's screen, blank runs collapsed. It finds panels the same way the other scripts do, by tab
 title.
 
-It does not say what the screen means. `coordinate-workers` carries that table, because a screen is
-UI and UI drifts between releases: a pattern written into a script would keep reporting "fine" after
-the thing it matched stopped existing, while the same pattern written in prose merely goes stale
-where someone can see it. The one exception is a retry countdown, which it does flag — that is the
-single state where acting on it does damage rather than nothing.
-
-Reach for it only for a worker that stopped without reporting. A worker that is `busy` in
-`ListAgents` needs no inspection, and the screen is large enough that reading it is not free.
+It does not say what the screen means; `coordinate-workers` carries that table. Reach for it only for
+a worker that stopped without reporting — a worker that is `busy` in `ListAgents` needs no
+inspection, and a viewport is large enough that reading one is not free.
 
 ## Retiring one
 
@@ -134,15 +129,11 @@ Enter would have granted it.
 
 ## Gotchas
 
-**`ListAgents` reports `busy`, `idle` or `shell`, and `idle` hides the case you care about.** A
-worker that finished and a worker whose turn died on a connection error both read `idle` — verified
-by killing a session's turn and watching it sit there. So the status is a cheap way to rule out the
-ones still working and no help at all in telling a finished worker from a stopped one.
-
-**A dead turn stays dead.** The session prints `API Error: …`, closes the turn with `· done HH:MM`
-and returns to a clean prompt, where it waits indefinitely. Nothing in the CLI brings it back, and
-reconnecting the network does not either. A `SendMessage` does — it starts a new turn, verified end
-to end.
+**A dead turn stays dead, and the panel gives no sign of it.** When a turn ends on a connection
+error the session prints `API Error: …`, closes with `· done HH:MM` and returns to a clean prompt,
+where it waits indefinitely — reconnecting the network does not revive it. So a panel sitting at a
+prompt is not evidence that the worker finished. `coordinate-workers` covers how to tell the two
+apart and how to restart one.
 
 **`--type agent-session` looks right and is a dead end.** It creates cmux's own agent surface, which
 never registers as a peer session, so `SendMessage` cannot reach it. Only a `terminal` surface

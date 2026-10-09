@@ -2,15 +2,18 @@
 # Show what a worker's panel is displaying, so a coordinator can tell why one
 # stopped without reporting.
 #
-# This script deliberately does NOT decide what it is looking at. It finds the
-# panel, reads the screen and hands it back; the reading happens in
-# coordinate-workers, which lists what each state looks like. A screen is UI,
-# and UI drifts between releases — a pattern baked into a script here would go
-# on reporting "fine" after the thing it matched stopped existing, which is the
-# one failure worth avoiding. Prose goes stale visibly; code goes stale silently.
+# This script finds the panel, reads the screen and hands it back. It does not
+# decide what it is looking at: the reader is a model that already holds the
+# context this needs — which worker was given what, and whether a report came —
+# and that is the join a pattern here could not make anyway.
 #
-# The single exception is the retry warning below, and it is there because
-# acting on that state does damage rather than nothing.
+# It carried a grep for the retry countdown at one point, on the grounds that
+# nudging a worker mid-backoff aborts a recovery. That came out. The match ran
+# over the whole viewport, so a worker whose own logs or source contained the
+# phrase tripped it, and a retry banner sits on screen alongside the API error
+# that follows it — both cases print "leave this one alone" over a worker that
+# is in fact dead, which is the exact failure this script exists to catch.
+# coordinate-workers names the state in its table instead.
 set -euo pipefail
 
 NAMES=()
@@ -38,7 +41,9 @@ USAGE
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --name) NAMES+=("${2:-}"); shift 2 ;;
+    # Check for the value before shifting past it: a trailing bare --name would
+    # otherwise make `shift 2` fail and exit 1 with no message of its own.
+    --name) [[ $# -ge 2 ]] || { echo "--name needs a worker name after it" >&2; exit 2; }; NAMES+=("$2"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -77,36 +82,35 @@ elif hits:
   )" || true
 
   if [[ -z "${SURFACE:-}" ]]; then
-    echo "no panel found whose title matches '${NAME}'." >&2
-    echo "The panel title is not the SendMessage address; a worker launched without" >&2
-    echo "a matching tab name cannot be inspected this way." >&2
-    STATUS=4
+    echo "no single panel matches '${NAME}'." >&2
+    echo "Either none does — the panel title is not the SendMessage address, so a" >&2
+    echo "worker whose tab was never named for it cannot be inspected this way —" >&2
+    echo "or several do, in which case they are listed above and you need a name" >&2
+    echo "that picks out exactly one." >&2
+    if [[ "$STATUS" -lt 4 ]]; then STATUS=4; fi
     echo
     continue
   fi
 
-  SCREEN="$(cmux read-screen --surface "$SURFACE" 2>/dev/null)" || SCREEN=""
+  # Keep stderr: when the read fails, its reason is the only thing that
+  # distinguishes a closed panel from a cmux that is not answering, and the
+  # message below is worth more with it than without.
+  SCREEN="$(cmux read-screen --surface "$SURFACE" 2>&1)" || SCREEN=""
 
   # An unreadable screen is not a quiet worker, it is an unknown one. Saying so
   # out loud matters more here than anywhere else in this plugin: the whole
   # point of the check is to catch a worker that stopped, and silence read as
   # "nothing to report" recreates exactly the failure it exists to prevent.
-  if [[ -z "${SCREEN// /}" ]]; then
+  #
+  # Strip every kind of whitespace, not just spaces. A viewport of newlines and
+  # tabs is as empty as one of spaces, and treating it as readable would print
+  # nothing and call it a successful check.
+  if [[ -z "${SCREEN//[[:space:]]/}" ]]; then
     echo "could not read ${NAME}'s screen (${SURFACE}) — state UNKNOWN." >&2
     echo "This is not evidence that the worker is fine. Look at the panel." >&2
-    STATUS=5
+    if [[ "$STATUS" -lt 5 ]]; then STATUS=5; fi
     echo
     continue
-  fi
-
-  # The one judgement this script does make. A worker showing a retry countdown
-  # is not stuck — the CLI is waiting out a backoff that was measured at over
-  # two minutes, and a message sent now interrupts a recovery that would have
-  # succeeded on its own. Every other state is cheap to get wrong and is left
-  # to the reader; this one is not.
-  if printf '%s' "$SCREEN" | grep -qiE 'will retry in|waiting for api response'; then
-    echo "NOTE: ${NAME} is retrying — leave it alone. The countdown runs for"
-    echo "      minutes, and nudging now aborts a recovery already in progress."
   fi
 
   echo "surface: ${SURFACE}"
