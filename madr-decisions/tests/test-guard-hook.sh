@@ -49,31 +49,35 @@ echo "guard-accepted-record.sh"
 
 # --- the workflow must not be blocked ---------------------------------------
 
-expect "a proposed record stays editable"            proposed    r-proposed   Edit  allow
-expect "a proposed record stays writable"            proposed    r-proposed-w Write allow
+# Fixture names carry the NNNN- prefix the generator produces, because that is
+# now half the signal the guard uses to tell a record from any other markdown.
+
+expect "a proposed record stays editable"            proposed    0010-proposed   Edit  allow
+expect "a proposed record stays writable"            proposed    0011-proposed-w Write allow
 
 # --- settled records are history --------------------------------------------
 
-expect "an accepted record is refused"               accepted    r-accepted   Edit  deny
-expect "an accepted record is refused on Write too"  accepted    r-accepted-w Write deny
-expect "a rejected record is refused"                rejected    r-rejected   Edit  deny
-expect "a deprecated record is refused"              deprecated  r-deprecated Edit  deny
-expect "a superseded record is refused" "superseded by 0014" r-superseded Edit deny
+expect "an accepted record is refused"               accepted    0012-accepted   Edit  deny
+expect "an accepted record is refused on Write too"  accepted    0013-accepted-w Write deny
+expect "a rejected record is refused"                rejected    0014-rejected   Edit  deny
+expect "a deprecated record is refused"              deprecated  0015-deprecated Edit  deny
+expect "a superseded record is refused" "superseded by 0014" 0016-superseded Edit deny
 
 # --- things that are not decision records ------------------------------------
 
-expect "a file without frontmatter is left alone"    __nofrontmatter__ r-bare   Edit allow
-expect "a status inside the body is not state"       __bodyonly__      r-body   Edit allow
+expect "a file without frontmatter is left alone"    __nofrontmatter__ 0017-bare Edit allow
+expect "a status inside the body is not state"       __bodyonly__      0018-body Edit allow
+expect "a markdown file with no NNNN- prefix is left alone" accepted   notes-on-postgres Edit allow
 
 # --- edges -------------------------------------------------------------------
 
-out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/does-not-exist.md"}}' "$WORK" \
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0019-does-not-exist.md"}}' "$WORK" \
       | "$GUARD" 2>/dev/null)
 if [ -z "$out" ]; then ok "a file that does not exist yet is allowed"
 else bad "a file that does not exist yet is allowed" "guard produced: $out"; fi
 
-printf -- '---\nstatus: "accepted"\n---\n' > "$WORK/with space.md"
-out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/with space.md"}}' "$WORK" \
+printf -- '---\nstatus: "accepted"\n---\n' > "$WORK/0020-with space.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0020-with space.md"}}' "$WORK" \
       | "$GUARD" 2>/dev/null)
 case "$out" in
   *deny*) ok "a path containing a space is still matched" ;;
@@ -83,6 +87,50 @@ esac
 out=$(printf 'not json at all' | "$GUARD" 2>/dev/null); code=$?
 if [ "$code" -eq 0 ] && [ -z "$out" ]; then ok "malformed input does not block the session"
 else bad "malformed input does not block the session" "exit=$code out=${out:-<nothing>}"; fi
+
+# --- a frontmatter status alone does not make something a record -------------
+#
+# This hook runs on every Edit and Write in every session the plugin is enabled
+# in. A blog post or a note carrying `status:` must pass straight through, or
+# the guard blocks unrelated work and tells the agent to supersede a decision
+# that does not exist.
+
+printf -- '---\ntitle: A post\nstatus: published\n---\n\n# Hello\n' > "$WORK/my-blog-post.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/my-blog-post.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "a blog post with status: published is left alone"
+else bad "a blog post with status: published is left alone" "guard produced: $out"; fi
+
+printf -- '---\nstatus: draft\n---\n\n# Notes\n' > "$WORK/meeting-notes.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/meeting-notes.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "a note with status: draft is left alone"
+else bad "a note with status: draft is left alone" "guard produced: $out"; fi
+
+# --- line endings and whitespace ---------------------------------------------
+#
+# Both of these look like a file the guard correctly ignored, which is what
+# makes them worth pinning: a bypass that is indistinguishable from working.
+
+printf -- '---\r\nstatus: "accepted"\r\ndate: 2026-01-01\r\n---\r\n' > "$WORK/0031-crlf.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0031-crlf.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+case "$out" in
+  *'"deny"'*) ok "a CRLF accepted record is still refused" ;;
+  *) bad "a CRLF accepted record is still refused" "guard allowed it" ;;
+esac
+
+printf -- '---\nstatus: proposed  \n---\n' > "$WORK/0032-trailing.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0032-trailing.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "proposed with trailing spaces stays editable"
+else bad "proposed with trailing spaces stays editable" "guard denied an open draft"; fi
+
+printf -- '---\nstatus: "proposed"  \n---\n' > "$WORK/0033-qtrailing.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0033-qtrailing.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "quoted proposed with trailing spaces stays editable"
+else bad "quoted proposed with trailing spaces stays editable" "guard denied an open draft"; fi
+
+printf -- '---\r\nstatus: "proposed"\r\n---\r\n' > "$WORK/0034-crlf-open.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0034-crlf-open.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "a CRLF proposed record stays editable"
+else bad "a CRLF proposed record stays editable" "guard denied an open draft"; fi
 
 printf -- '---\nstatus: "accepted"\n---\n' > "$WORK/notes.txt"
 out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/notes.txt"}}' "$WORK" \

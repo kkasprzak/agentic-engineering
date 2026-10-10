@@ -56,15 +56,38 @@ EOF
 
 case "$file_path" in *.md) ;; *) exit 0 ;; esac
 
+# A frontmatter `status` on its own is not enough to call something a decision
+# record. Blog posts carry `status: published`, notes carry `status: draft`, and
+# denying an edit to either would block unrelated work in every session this
+# plugin is enabled in — then point the agent at superseding a record that does
+# not exist. The second signal is the filename the generator always produces:
+# four digits, a dash, a slug. Two independent signals, both cheap.
+case "$(basename "$file_path")" in
+  [0-9][0-9][0-9][0-9]-*.md) ;;
+  *) exit 0 ;;
+esac
+
 # Read the status out of the frontmatter only — the block between the first
 # `---` and the next. A `status:` line inside a fenced example in the body is
 # prose, not state.
+#
+# `\r?$` throughout: a record saved with CRLF endings has `---\r` as its first
+# line, and an anchored `^---$` does not match it. Without this the whole block
+# below reads as "no frontmatter", the guard exits 0, and a CRLF record is
+# silently unprotected — a bypass that looks exactly like a file the guard
+# correctly ignored. Trailing whitespace is stripped for the same class of
+# reason: `status: proposed  ` would otherwise fail to equal `proposed` and the
+# guard would deny an edit to an open draft, which is the way a guard gets
+# switched off.
 status=$(awk '
-  NR == 1 && /^---$/ { infm = 1; next }
-  infm && /^---$/     { exit }
-  infm && /^status:/  {
+  NR == 1 && /^---\r?$/ { infm = 1; next }
+  infm && /^---\r?$/    { exit }
+  infm && /^status:/    {
+      sub(/\r$/, "")
       sub(/^status:[[:space:]]*/, "")
+      sub(/[[:space:]]+$/, "")
       gsub(/^["'\'']|["'\'']$/, "")
+      sub(/[[:space:]]+$/, "")
       print
       exit
   }

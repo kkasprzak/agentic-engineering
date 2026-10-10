@@ -35,9 +35,11 @@ format does not carry.
 - **A decision record is not documentation of the code.** It is dated, and it says what was decided
   *then*. When the code moves on, the record does not become wrong — it becomes superseded.
   Rewriting its original sections to match today's code destroys the only copy of what was decided.
-  A record whose status is anything but `proposed` is refused by this plugin if you try to edit it,
-  and the refusal is not an obstacle to work around — it is this rule, arriving at the moment it
-  applies. Supersede instead.
+  Editing such a record with `Edit` or `Write` is refused by this plugin, and the refusal names the
+  command to run instead. Treat it as this rule arriving at the moment it applies, not as an
+  obstacle to get around — **a shell edit is not the way around it.** `sed -i` and a redirect go
+  unseen, because the refusal cannot see inside a Bash command; that makes them the one route by
+  which you can still destroy a record by accident, not a sanctioned alternative.
 - **The tell is in the commit message.** "The record no longer describes something that does not
   exist" means the author has mistaken a dated record for documentation to keep in sync. There is
   nothing to sync; there is a new record to write.

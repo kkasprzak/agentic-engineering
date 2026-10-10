@@ -120,7 +120,12 @@ if [ -n "$supersedes" ]; then
   fi
   old_file="$matches"
 
-  if ! head -1 "$old_file" | grep -q '^---$'; then
+  # `\r\?` here and in the awk below: a record saved with CRLF endings opens with
+  # `---\r`, which an anchored `^---$` does not match. Refusing it as "no
+  # frontmatter" would leave such a record impossible to supersede through the
+  # sanctioned path, while the guard hook refuses to let it be edited either —
+  # a record with no way forward at all.
+  if ! head -1 "$old_file" | grep -q '^---\r\?$'; then
     echo "refusing: $old_file has no frontmatter to update" >&2
     exit 2
   fi
@@ -130,9 +135,15 @@ if [ -n "$supersedes" ]; then
   # example in the body too, and the rewrite further down would then edit the
   # prose instead of the header.
   old_status=$(awk '
-    NR == 1 && /^---$/ { infm = 1; next }
-    infm && /^---$/     { exit }
-    infm && /^status:/  { sub(/^status:[[:space:]]*/, ""); print; exit }
+    NR == 1 && /^---\r?$/ { infm = 1; next }
+    infm && /^---\r?$/    { exit }
+    infm && /^status:/    {
+        sub(/\r$/, "")
+        sub(/^status:[[:space:]]*/, "")
+        sub(/[[:space:]]+$/, "")
+        print
+        exit
+    }
   ' "$old_file")
 
   if [ -z "$old_status" ]; then
@@ -273,9 +284,17 @@ if [ -n "$old_file" ]; then
   # Only the frontmatter's status line. The body may legitimately contain a
   # `status:` line inside an example, and rewriting that would corrupt prose.
   if awk -v repl="status: \"superseded by $ref\"" '
-       NR == 1 && /^---$/ { infm = 1; print; next }
-       infm && /^---$/     { infm = 0; print; next }
-       infm && !done && /^status:/ { print repl; done = 1; next }
+       NR == 1 && /^---\r?$/ { infm = 1; print; next }
+       infm && /^---\r?$/    { infm = 0; print; next }
+       infm && !done && /^status:/ {
+           # Keep the line ending the file already uses. Writing an LF line into
+           # a CRLF file would leave one line out of step with every other and
+           # show up as a second change in the diff, which is exactly what the
+           # one-line promise says will not happen.
+           if (/\r$/) print repl "\r"; else print repl
+           done = 1
+           next
+       }
        { print }
      ' "$old_file" > "$tmp" && mv "$tmp" "$old_file"; then
     echo "$old_file  → superseded by $ref"

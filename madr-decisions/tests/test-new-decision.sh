@@ -141,6 +141,26 @@ echo "new-decision.sh"
 
 ( workdir
   mkdir -p docs/adr
+  # A record saved with CRLF endings. Refusing it as "no frontmatter" would be
+  # worse than a plain bug: the guard hook refuses to let such a record be
+  # edited, so if the generator also refuses to supersede it, there is no way
+  # forward at all.
+  printf -- '---\r\nstatus: "accepted"\r\ndate: 2026-01-01\r\n---\r\n\r\n# Old\r\n' \
+    > docs/adr/0000-crlf.md
+  "$SCRIPT" --supersedes 0000 "Replacement" >/dev/null 2>&1
+  check "a CRLF record can be superseded" "$?" "0"
+  check "its status was flipped" \
+        "$(tr -d '\r' < docs/adr/0000-crlf.md | grep '^status:')" \
+        'status: "superseded by 0001"'
+  # The replacement line has to carry the ending the rest of the file uses, or
+  # one line is out of step with every other and the diff shows two changes.
+  check "and keeps the file's CRLF endings" \
+        "$(grep -c $'\r$' docs/adr/0000-crlf.md | tr -d ' ')" \
+        "$(wc -l < docs/adr/0000-crlf.md | tr -d ' ')"
+)
+
+( workdir
+  mkdir -p docs/adr
   # `status:` in the body, none in the frontmatter. The rewrite must not reach
   # into the prose looking for one.
   printf -- '---\ndate: 2026-01-01\n---\n\n# Example\n\n```yaml\nstatus: "example"\n```\n' \
@@ -156,16 +176,35 @@ echo "new-decision.sh"
 ( workdir
   "$SCRIPT" "Original" >/dev/null 2>&1
   chmod 555 docs/adr
-  "$SCRIPT" --supersedes 0000 "Replacement" >/dev/null 2>&1
-  code=$?
-  chmod 755 docs/adr
-  # The failure this plugin exists to prevent, in the tool itself: reporting
-  # work that did not happen.
-  check "an unwritable directory is an error, not a success" "$code" "1"
-  check "nothing was half-done" "$(ls docs/adr | wc -l | tr -d ' ')" "1"
-  check "the old record was not flipped" \
-        "$(grep '^status:' docs/adr/0000-original.md)" 'status: "proposed"'
+  # chmod does not stop root, so under a root CI container the script would
+  # succeed and these three would fail while the script is correct. A suite that
+  # cries wolf gets ignored, so probe first and skip rather than assert.
+  # The 2>/dev/null comes FIRST: redirections are applied left to right, so with
+  # it last the failing `> .probe` has already printed to the real stderr.
+  if : 2>/dev/null > docs/adr/.probe; then
+    rm -f docs/adr/.probe
+    chmod 755 docs/adr
+    printf '  skip unwritable-directory case (writes succeed here — running as root?)\n'
+  else
+    "$SCRIPT" --supersedes 0000 "Replacement" >/dev/null 2>&1
+    code=$?
+    chmod 755 docs/adr
+    # The failure this plugin exists to prevent, in the tool itself: reporting
+    # work that did not happen.
+    check "an unwritable directory is an error, not a success" "$code" "1"
+    check "nothing was half-done" "$(ls docs/adr | wc -l | tr -d ' ')" "1"
+    check "the old record was not flipped" \
+          "$(grep '^status:' docs/adr/0000-original.md)" 'status: "proposed"'
+  fi
 )
+
+# NOT COVERED, deliberately and worth saying so rather than implying otherwise:
+# the rollback branch, where the new record is written and flipping the old one
+# then fails. The case above never reaches it — the new-record write fails first,
+# so the script exits before the flip is attempted. Forcing only the flip to fail
+# needs a writable directory containing an unwritable rename target, which is not
+# portable, and the alternative is a seam in production code that exists solely
+# for a test. The branch is three lines and is reviewed by reading.
 
 pass=$(grep -c '^ok$'   "$RESULTS" || true)
 fail=$(grep -c '^fail$' "$RESULTS" || true)
