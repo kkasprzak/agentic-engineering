@@ -16,6 +16,11 @@
       "description": "The backlog agent-crew's workers pull from, held in Beads. The crew names the moves in the abstract - find existing work, create an item, link a dependency, claim one, close it, record what was learned - and this plugin binds them to `bd`, so a coordinator drives a real store instead of asking which one to use. Swap it for another provider to change store without touching the crew."
     },
     {
+      "name": "madr-decisions",
+      "source": "./madr-decisions",
+      "description": "Records decisions in MADR, and keeps them readable as history. Generates the record rather than describing the format, so the shape is never recalled from memory; and supersedes a decision by writing a new one and flipping a single line of the old, because a record rewritten to match today's code destroys the only account of what was decided. Swap it for another format provider without changing how the rest of your tooling refers to it."
+    },
+    {
       "name": "peer-review",
       "source": "./peer-review",
       "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer deliberately given no context beyond the artifact itself. Read-only: reports defects, leaves the decision to you."

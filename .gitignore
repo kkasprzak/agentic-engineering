@@ -1,1 +1,4 @@
 .DS_Store
+
+# Claude Code worktrees are other sessions working here, never this repo content
+.claude/worktrees/

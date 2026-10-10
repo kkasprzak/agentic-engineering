@@ -1,0 +1,15 @@
+{
+  "name": "madr-decisions",
+  "description": "Records decisions in MADR, and keeps them readable as history. Generates the record rather than describing the format, so the shape is never recalled from memory; and supersedes a decision by writing a new one and flipping a single line of the old, because a record rewritten to match today's code destroys the only account of what was decided. Swap it for another format provider without changing how the rest of your tooling refers to it.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Karol Kasprzak"
+  },
+  "keywords": [
+    "madr",
+    "adr",
+    "decision-records",
+    "architecture",
+    "documentation"
+  ]
+}
