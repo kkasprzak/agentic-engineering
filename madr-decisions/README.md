@@ -28,16 +28,25 @@ number, the path and the filename, and writes the frontmatter with MADR's five k
 **Supersedes by writing, not editing.** `--supersedes` creates the new record and changes exactly one
 line of the old one: its status. Everything else in that file is history and is left byte-for-byte as
 it was. This is the behaviour the plugin exists for, and it is the assertion its tests are built
-around — `madr-decisions/tests/test-new-decision.sh`, which needs nothing but bash and exits non-zero
-when anything fails.
+around — `madr-decisions/tests/test-new-decision.sh`, which exits non-zero when anything fails. It
+needs `perl` for its timeout and `python3` for the guard's suite; where either is missing the cases
+that depend on it say so and are skipped rather than reported as passes.
 
 **Refuses the edit that caused all this, at the moment it is attempted.** Generating a good record
 does nothing about an agent opening an accepted one six months later and bringing it up to date, and
 by then no skill is loaded to object. A `PreToolUse` hook sits on `Edit` and `Write` and reads the
 target's own status: `proposed` is a draft and stays editable, which is exactly what filling in a
-fresh skeleton is; anything else has been decided, and the edit is refused with a message naming
-`--supersedes` as the way forward. No path list to maintain and no configuration — the record says
-whether it is still open, and a human accepting it is what locks it.
+fresh skeleton is; `accepted`, `rejected`, `deprecated` and `superseded by <id>` have been decided,
+and the edit is refused with a message naming the command to run instead. No path list to maintain
+and no configuration — the record says whether it is still open, and a human accepting it is what
+locks it.
+
+**It protects what this plugin generated, and only that.** A file qualifies when its name is four
+digits and a slug *and* its frontmatter status is one MADR defines. That deliberately excludes a
+status the plugin has never heard of and a four-digit prefix that is really a date, because a guard
+that fires on somebody's blog post does not merely annoy — the refusal prints a runnable command,
+and an agent that follows it rewrites that post's frontmatter. Records under another convention —
+`ADR-0001-`, `001-`, a `## Status` section rather than frontmatter — are not protected at all.
 
 The hole in that: a file written through the shell. The harness fires `PreToolUse` for the Bash tool
 as a whole and not for a redirection inside it, so `sed -i` goes around the guard. Catching nine
@@ -88,7 +97,14 @@ claude plugin install madr-decisions@agentic-engineering
 
 Bash and `python3`, no packages and no network. `python3` is there for one job: the guard hook parses
 the harness's JSON with it rather than grepping for a file path, because a path may contain spaces,
-quotes or backslashes and the grep version works until the day it does not.
+quotes or backslashes and the grep version works until the day it does not. **Without `python3` the
+guard cannot read its input, so it allows the edit** — it says so on stderr rather than failing
+closed, because a guard that wedges every session is worse than one that is honest about being
+inert. The test suites additionally want `perl`.
+
+Verified on macOS (bash 3.2, BSD tools) and on Linux under both GNU and BusyBox userlands. Windows
+is untested and the guard is probably inert there: `file_path` arrives with backslashes, which the
+filename check does not recognise.
 
 ## Known gaps
 

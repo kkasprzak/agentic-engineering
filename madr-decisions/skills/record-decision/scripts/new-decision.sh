@@ -82,6 +82,41 @@ case "$scope" in
     exit 1 ;;
 esac
 
+# --root and --supersedes need the same containment --scope has. Without it,
+# `--supersedes ../../elsewhere/0042` rewrites a file outside the records tree
+# entirely — the id is split on the last slash and the remainder is pasted onto
+# the root with no normalisation — and --root writes a skeleton anywhere the
+# user can write. The skill grants this script with a blanket argument glob, so
+# both are reachable without a permission prompt.
+case "$root" in
+  ""|/*)
+    echo "refusing: --root must be a relative path inside the repository, got '$root'" >&2
+    exit 1 ;;
+  ..|../*|*/..|*/../*)
+    echo "refusing: --root must not climb out of the repository, got '$root'" >&2
+    exit 1 ;;
+esac
+
+if [ -n "$supersedes" ]; then
+  # `0014` at system scope, `chat/0014` when narrowed. Nothing else: no absolute
+  # paths, no `..`, no deeper nesting.
+  ok_id=0
+  case "$supersedes" in
+    [0-9][0-9][0-9][0-9]) ok_id=1 ;;
+    */*/*) ok_id=0 ;;
+    */[0-9][0-9][0-9][0-9])
+      case "${supersedes%/*}" in
+        ""|.|..|*/*|*' '*) ok_id=0 ;;
+        *) ok_id=1 ;;
+      esac ;;
+  esac
+  if [ "$ok_id" -ne 1 ]; then
+    echo "refusing: --supersedes takes a record id, got '$supersedes'" >&2
+    echo "  Use 0014 for a system record, or chat/0014 for a narrowed one." >&2
+    exit 1
+  fi
+fi
+
 if [ -n "$scope" ]; then dir="$root/$scope"; else dir="$root"; fi
 
 # --- resolve the record being superseded ------------------------------------
@@ -120,12 +155,18 @@ if [ -n "$supersedes" ]; then
   fi
   old_file="$matches"
 
-  # `\r\?` here and in the awk below: a record saved with CRLF endings opens with
-  # `---\r`, which an anchored `^---$` does not match. Refusing it as "no
-  # frontmatter" would leave such a record impossible to supersede through the
-  # sanctioned path, while the guard hook refuses to let it be edited either —
-  # a record with no way forward at all.
-  if ! head -1 "$old_file" | grep -q '^---\r\?$'; then
+  # A record saved with CRLF endings opens with `---\r`, which an anchored
+  # `^---$` does not match. Refusing it as "no frontmatter" would leave such a
+  # record impossible to supersede through the sanctioned path, while the guard
+  # hook refuses to let it be edited either — a record with no way forward.
+  #
+  # `tr -d '\r'` rather than a `\r` in the pattern. BSD grep reads `\r` in a
+  # BRE as carriage return and GNU grep reads it as a literal `r`, so a pattern
+  # written that way works on macOS and silently fails on every mainstream
+  # Linux. Measured on GNU grep 3.8: `^---\r\?$` matched `---r` and did not
+  # match `---<CR>`. Deleting the character first needs no agreement about what
+  # an escape means.
+  if ! head -1 "$old_file" | tr -d '\r' | grep -q '^---$'; then
     echo "refusing: $old_file has no frontmatter to update" >&2
     exit 2
   fi
@@ -135,13 +176,22 @@ if [ -n "$supersedes" ]; then
   # example in the body too, and the rewrite further down would then edit the
   # prose instead of the header.
   old_status=$(awk '
-    NR == 1 && /^---\r?$/ { infm = 1; next }
-    infm && /^---\r?$/    { exit }
-    infm && /^status:/    {
-        sub(/\r$/, "")
-        sub(/^status:[[:space:]]*/, "")
-        sub(/[[:space:]]+$/, "")
-        print
+    # Strip a trailing CR with string functions rather than a regex escape:
+    # "\r" in an awk STRING is portable, `\r` inside a regex literal is not
+    # guaranteed across awks. Every rule below then works on a clean line.
+    { line = $0
+      if (substr(line, length(line)) == "\r") line = substr(line, 1, length(line) - 1) }
+    NR == 1 && line == "---" { infm = 1; next }
+    infm && line == "---"    { exit }
+    infm && line ~ /^status:/ {
+        sub(/^status:[[:space:]]*/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        # Strip the optional quotes, exactly as the guard hook does. The two
+        # have to read a status the same way or they disagree about what a
+        # record is, and then one of them is refusing the other'"'"'s work.
+        gsub(/^["'"'"']|["'"'"']$/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        print line
         exit
     }
   ' "$old_file")
@@ -150,6 +200,22 @@ if [ -n "$supersedes" ]; then
     echo "refusing: $old_file has no status field in its frontmatter" >&2
     exit 2
   fi
+
+  # Supersede only a record this format recognises. `0014-foo.md` is a shape
+  # plenty of files share — a dated blog post, a numbered changelog — and
+  # flipping a `status:` line in one of those is corruption, not bookkeeping.
+  # The guard hook applies the same test before it refuses an edit; the two
+  # have to agree about what a record is or one of them is wrong.
+  case "$old_status" in
+    proposed|accepted|rejected|deprecated|"superseded by "*) ;;
+    *)
+      {
+        echo "refusing: $old_file does not look like a decision record"
+        echo "  Its status is \"${old_status}\", which is not one MADR defines."
+        echo "  Superseding it would rewrite a file this plugin did not create."
+      } >&2
+      exit 2 ;;
+  esac
 
   # Superseding something that was already superseded breaks the chain silently:
   # the old record is repointed at the new one, and whatever superseded it first
@@ -284,14 +350,17 @@ if [ -n "$old_file" ]; then
   # Only the frontmatter's status line. The body may legitimately contain a
   # `status:` line inside an example, and rewriting that would corrupt prose.
   if awk -v repl="status: \"superseded by $ref\"" '
-       NR == 1 && /^---\r?$/ { infm = 1; print; next }
-       infm && /^---\r?$/    { infm = 0; print; next }
-       infm && !done && /^status:/ {
+       { line = $0; cr = ""
+         if (substr(line, length(line)) == "\r") {
+             cr = "\r"; line = substr(line, 1, length(line) - 1) } }
+       NR == 1 && line == "---" { infm = 1; print; next }
+       infm && line == "---"    { infm = 0; print; next }
+       infm && !done && line ~ /^status:/ {
            # Keep the line ending the file already uses. Writing an LF line into
            # a CRLF file would leave one line out of step with every other and
            # show up as a second change in the diff, which is exactly what the
            # one-line promise says will not happen.
-           if (/\r$/) print repl "\r"; else print repl
+           print repl cr
            done = 1
            next
        }

@@ -30,6 +30,19 @@
 # agent on the covered path.
 set -uo pipefail
 
+# Without python3 this hook cannot read the harness's JSON and cannot emit a
+# refusal, so it allows the edit. That is the right default — a guard that
+# cannot see has not passed, it has abstained, and failing closed would wedge
+# every session on a machine missing an interpreter. But it must not do it
+# quietly: an installed guard that is permanently inert looks exactly like one
+# that is working.
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "madr-decisions: python3 not found, so decision records are NOT protected" >&2
+  echo "  in this session. Install python3 or disable the plugin; do not assume" >&2
+  echo "  an accepted record is safe from an agent's edit." >&2
+  exit 0
+fi
+
 input=$(cat)
 
 # python3 rather than jq: a file path can contain spaces, quotes and backslashes,
@@ -57,12 +70,23 @@ EOF
 case "$file_path" in *.md) ;; *) exit 0 ;; esac
 
 # A frontmatter `status` on its own is not enough to call something a decision
-# record. Blog posts carry `status: published`, notes carry `status: draft`, and
-# denying an edit to either would block unrelated work in every session this
-# plugin is enabled in — then point the agent at superseding a record that does
-# not exist. The second signal is the filename the generator always produces:
-# four digits, a dash, a slug. Two independent signals, both cheap.
-case "$(basename "$file_path")" in
+# record, and neither is a four-digit prefix. This hook runs on every Edit and
+# Write in every session the plugin is enabled in, so a false positive blocks
+# unrelated work — and because the refusal prints a runnable command, following
+# it rewrites the innocent file's frontmatter and drops a skeleton beside it.
+#
+# Two signals are required, and both were wrong before:
+#
+#   - the filename, four digits and a dash — but NOT a date. `2024-01-15-post.md`
+#     matched the old pattern, so Jekyll posts, daily notes and dated changelogs
+#     were all treated as records.
+#   - the status, which must be one MADR actually defines. Everything that was
+#     not `proposed` used to be treated as a decision taken, so `published`,
+#     `done`, `final` and a template's placeholder were all locked, with a
+#     message that read "This record is \"draft\": a decision that was taken".
+basename=$(basename "$file_path")
+case "$basename" in
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*) exit 0 ;;   # a date, not an id
   [0-9][0-9][0-9][0-9]-*.md) ;;
   *) exit 0 ;;
 esac
@@ -96,8 +120,13 @@ status=$(awk '
 # No frontmatter status: not a decision record, or not one this plugin made.
 [ -n "$status" ] || exit 0
 
+# Deny only on a status MADR defines as settled. Anything else — `published`,
+# `done`, a template placeholder, a status this plugin has never heard of — is
+# somebody else's document or a record in a state we cannot reason about, and
+# in both cases the safe answer is to stay out of the way.
 case "$status" in
-  proposed) exit 0 ;;
+  accepted|rejected|deprecated|"superseded by "*) ;;
+  *) exit 0 ;;
 esac
 
 # --- work out what to tell the agent to run instead --------------------------
@@ -107,8 +136,9 @@ esac
 # get wrong twice before getting it right, and each attempt costs a turn. Since
 # everything needed is derivable here, derive it.
 
-record_dir=$(dirname "$file_path")
-record_id=$(basename "$file_path" | cut -c1-4)
+abs_dir=$(dirname "$file_path")       # keep the absolute form: the filesystem
+record_dir="$abs_dir"                  # check below must not run against the
+record_id=$(basename "$file_path" | cut -c1-4)   # hook's own working directory
 
 # Paths relative to where the session is working read better than absolute ones
 # and are what the agent has to type.
@@ -125,12 +155,40 @@ case "$shown_path" in
   "$cwd"/*) shown_path="${shown_path#"$cwd"/}" ;;
 esac
 
-# Naming the record's own directory as --root is correct whatever tier it sits
-# in, because numbering is per directory and a bare id resolves under the root.
-# Deciding instead whether the parent is a scope or the root would be a guess,
-# and a guess here produces a command that fails.
+# Is this record narrowed, or at system scope? It decides the identifier that
+# gets written into the old record, and getting it wrong is not harmless: naming
+# the record's own directory as --root always RUNS, but for a narrowed record it
+# writes `superseded by 0001` where the convention is `superseded by chat/0001`.
+# Read under that convention, `0001` is a system record about something else, so
+# the chain silently points at the wrong file. A command that fails is better
+# than one that quietly writes the wrong thing.
+#
+# This is decided by looking rather than guessing: a scope directory sits inside
+# a root that holds numbered records of its own.
+abs_parent=$(dirname "$abs_dir")
+scope_name=$(basename "$abs_dir")
+narrowed=0
+for sibling in "$abs_parent"/[0-9][0-9][0-9][0-9]-*.md; do
+  [ -e "$sibling" ] || continue
+  narrowed=1
+  break
+done
+
+# The command the agent types is relative, so relativise the parent too.
+parent_dir="$abs_parent"
+case "$parent_dir" in
+  "$cwd"/*) parent_dir="${parent_dir#"$cwd"/}" ;;
+esac
+
 script="${CLAUDE_PLUGIN_ROOT:-<plugin>}/skills/record-decision/scripts/new-decision.sh"
-supersede_cmd="${script} --root ${record_dir} --supersedes ${record_id} \"<title of the new decision>\""
+if [ "$narrowed" -eq 1 ]; then
+  new_root="$parent_dir"
+  supersede_cmd="${script} --root ${new_root} --scope ${scope_name} --supersedes ${scope_name}/${record_id} \"<title of the new decision>\""
+  fresh_cmd="${script} --root ${new_root} --scope ${scope_name} \"<title of the new decision>\""
+else
+  supersede_cmd="${script} --root ${record_dir} --supersedes ${record_id} \"<title of the new decision>\""
+  fresh_cmd="${script} --root ${record_dir} \"<title of the new decision>\""
+fi
 
 # The advice has to differ by status, because "supersede it" is wrong for three
 # of the four. Telling an agent to supersede an already-superseded record sends
@@ -153,7 +211,7 @@ record is the account of a road not taken, and it stays that way.
 If the question is being reopened, write a new record with no --supersedes and
 refer to this one in its Context:
 
-  ${script} --root ${record_dir} \"<title of the new decision>\""
+  ${fresh_cmd}"
     ;;
   deprecated)
     what="This record no longer applies and has been marked so. Editing it to describe

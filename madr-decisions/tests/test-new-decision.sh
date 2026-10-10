@@ -29,9 +29,26 @@ check(){ if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected [$3], got [$2
 
 workdir() { cd "$(mktemp -d)" || exit 1; }
 
+# How many lines differ between two files. Not `diff | grep -c '^[<>]'`: BusyBox
+# diff only speaks unified, so that counts zero on Alpine and the assertion
+# passes vacuously on the one promise this plugin makes. awk needs no agreement
+# about output format.
+changed_lines() {
+  awk 'NR == FNR { a[FNR] = $0; n = FNR; next }
+       { if (FNR > n || a[FNR] != $0) c++ }
+       END { if (n > FNR) c += n - FNR; print c + 0 }' "$1" "$2"
+}
+
 # Bash has no portable timeout, and macOS ships no `timeout(1)`. perl's alarm is
 # everywhere and is the only reason a hang shows up as a failure here rather
 # than as a test run that never ends.
+#
+# Without perl the wrapper exits 127, which the hang check below read as neither
+# "hung" nor "succeeded" and therefore reported as a pass. A test that reports
+# ok when it could not run is worse than one that is missing, so the absence is
+# named instead.
+have_perl=0
+command -v perl >/dev/null 2>&1 && have_perl=1
 run_limited() { perl -e 'alarm shift; exec @ARGV' "$@"; }
 
 echo "new-decision.sh"
@@ -39,12 +56,19 @@ echo "new-decision.sh"
 # --- argument handling ------------------------------------------------------
 
 ( workdir
-  run_limited 5 "$SCRIPT" "Title" --scope >/dev/null 2>&1
-  code=$?
-  # 142 is death by SIGALRM: the loop never terminated.
-  if [ "$code" -eq 142 ]; then bad "a trailing --scope exits instead of hanging" "it hung"
-  elif [ "$code" -eq 0 ]; then bad "a trailing --scope exits instead of hanging" "it succeeded"
-  else ok "a trailing --scope exits instead of hanging"; fi
+  if [ "$have_perl" -ne 1 ]; then
+    printf '  skip a trailing --scope exits instead of hanging (no perl, cannot time out)\n'
+  else
+    run_limited 5 "$SCRIPT" "Title" --scope >/dev/null 2>&1
+    code=$?
+    # 142 is death by SIGALRM: the loop never terminated.
+    case "$code" in
+      142) bad "a trailing --scope exits instead of hanging" "it hung" ;;
+      0)   bad "a trailing --scope exits instead of hanging" "it succeeded" ;;
+      1|2) ok  "a trailing --scope exits instead of hanging" ;;
+      *)   bad "a trailing --scope exits instead of hanging" "unexpected exit $code" ;;
+    esac
+  fi
 )
 
 ( workdir
@@ -93,6 +117,76 @@ echo "new-decision.sh"
   check "the slug drops punctuation" "$(ls docs/adr)" "0000-nicode-punctuation.md"
 )
 
+# --- the skeleton's contents ------------------------------------------------
+#
+# The README calls the generated skeleton the point of the plugin, and until now
+# nothing asserted a single thing about what it contains: a sixth frontmatter
+# key, a renamed heading or a non-ISO date would all have passed.
+
+( workdir
+  "$SCRIPT" "Shape Check" >/dev/null 2>&1
+  f=docs/adr/0000-shape-check.md
+  keys=$(awk 'NR==1&&/^---$/{i=1;next} i&&/^---$/{exit} i&&/^[a-z-]+:/{sub(/:.*/,"");print}' "$f" | tr '\n' ' ')
+  check "the frontmatter carries MADR's five keys and no sixth" \
+        "$keys" "status date decision-makers consulted informed "
+  check "status starts at proposed" "$(grep '^status:' "$f")" 'status: "proposed"'
+  check "the date is ISO" \
+        "$(awk -F': ' '/^date:/{print ($2 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) ? "iso" : $2}' "$f")" \
+        "iso"
+  # The exact heading structure, not a count: a count survives a rename, and a
+  # renamed section is the mutation most likely to go unnoticed.
+  check "the headings are MADR's, in order and at the right level" \
+        "$(grep -E '^#{2,3} ' "$f" | grep -v '{option' | tr '\n' '|')" \
+        "## Context and Problem Statement|## Decision Drivers|## Considered Options|## Decision Outcome|### Consequences|### Confirmation|## Pros and Cons of the Options|## More Information|"
+)
+
+# --- --root, which every adopting repository needs and nothing tested --------
+
+( workdir
+  "$SCRIPT" --root docs/decisions "Elsewhere" >/dev/null 2>&1
+  check "--root puts the record where it says" \
+        "$(ls docs/decisions 2>/dev/null)" "0000-elsewhere.md"
+  check "and does not create the default root" \
+        "$([ -d docs/adr ] && echo yes || echo no)" "no"
+)
+
+( workdir
+  "$SCRIPT" --root docs/decisions "First"  >/dev/null 2>&1
+  "$SCRIPT" --root docs/decisions "Second" >/dev/null 2>&1
+  check "--root numbers from what is already there" \
+        "$(ls docs/decisions | tr '\n' ' ')" "0000-first.md 0001-second.md "
+)
+
+( workdir
+  "$SCRIPT" --root /tmp "Absolute" >/dev/null 2>&1
+  check "--root refuses an absolute path" "$?" "1"
+)
+
+( workdir
+  "$SCRIPT" --root ../outside "Climbing" >/dev/null 2>&1
+  check "--root refuses to climb out" "$?" "1"
+)
+
+( workdir
+  mkdir -p docs/adr ../victim
+  printf -- '---\nstatus: "accepted"\n---\n' > ../victim/0042-important.md 2>/dev/null
+  "$SCRIPT" --supersedes ../../victim/0042 "Traversal" >/dev/null 2>&1
+  check "--supersedes refuses a path instead of an id" "$?" "1"
+)
+
+# --- the narrowed supersede happy path, only its refusal was covered ---------
+
+( workdir
+  "$SCRIPT" --scope chat "Narrow One" >/dev/null 2>&1
+  "$SCRIPT" --scope chat --supersedes chat/0000 "Narrow Two" >/dev/null 2>&1
+  check "a narrowed record can supersede its own scope" "$?" "0"
+  # The identifier must carry the scope, or the chain points at a system record
+  # with the same number.
+  check "and the written identifier keeps the scope" \
+        "$(grep '^status:' docs/adr/chat/0000-narrow-one.md)" \
+        'status: "superseded by chat/0001"'
+)
+
 ( workdir
   before=$(ls 2>/dev/null)
   "$SCRIPT" --print "Nothing Written" >/dev/null 2>&1
@@ -105,10 +199,10 @@ echo "new-decision.sh"
   "$SCRIPT" "Original" >/dev/null 2>&1
   cp docs/adr/0000-original.md /tmp/before.$$
   "$SCRIPT" --supersedes 0000 "Replacement" >/dev/null 2>&1
-  diffcount=$(diff /tmp/before.$$ docs/adr/0000-original.md | grep -c '^[<>]')
+  n=$(changed_lines /tmp/before.$$ docs/adr/0000-original.md)
   rm -f /tmp/before.$$
   # The whole promise of the plugin: one line changes, the rest is history.
-  check "superseding changes exactly one line" "$diffcount" "2"
+  check "superseding changes exactly one line" "$n" "1"
 )
 
 ( workdir

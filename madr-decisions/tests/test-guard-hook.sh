@@ -95,6 +95,26 @@ else bad "malformed input does not block the session" "exit=$code out=${out:-<no
 # the guard blocks unrelated work and tells the agent to supersede a decision
 # that does not exist.
 
+# A dated filename matches "four digits and a dash" by accident. This was the
+# worst false positive: the post is denied AND the printed command, if followed,
+# rewrites its frontmatter and drops a MADR skeleton into the blog directory.
+mkdir -p "$WORK/_posts"
+printf -- '---\ntitle: Hello\nstatus: published\n---\n\n# Hello\n' > "$WORK/_posts/2024-01-15-hello-world.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/_posts/2024-01-15-hello-world.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "a dated filename is not mistaken for a record id"
+else bad "a dated filename is not mistaken for a record id" "guard produced: $out"; fi
+
+# Even correctly named, a status this plugin does not define is not its business.
+printf -- '---\nstatus: published\ndate: 2026-01-01\n---\n' > "$WORK/0040-changelog.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0040-changelog.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "a numbered file with a non-MADR status is left alone"
+else bad "a numbered file with a non-MADR status is left alone" "guard produced: $out"; fi
+
+printf -- '---\nstatus: "{proposed | rejected | accepted}"\n---\n' > "$WORK/0041-template.md"
+out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/0041-template.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
+if [ -z "$out" ]; then ok "a template's placeholder status is left alone"
+else bad "a template's placeholder status is left alone" "guard produced: $out"; fi
+
 printf -- '---\ntitle: A post\nstatus: published\n---\n\n# Hello\n' > "$WORK/my-blog-post.md"
 out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/my-blog-post.md"}}' "$WORK" | "$GUARD" 2>/dev/null)
 if [ -z "$out" ]; then ok "a blog post with status: published is left alone"
@@ -163,9 +183,15 @@ has  "the refusal names the record's directory"   "--root docs/adr"   "$r"
 has  "the path is shown relative to the session"  "docs/adr/0014-postgres.md" "$r"
 hasnt "no placeholder is left for the agent"      "<id>"              "$r"
 
+# A narrowed record sits in a scope directory, whose parent holds records of its
+# own. The identifier written into the old record has to carry the scope, or the
+# chain points at a system record that happens to share the number — a command
+# that runs and quietly does the wrong thing, which is worse than one that fails.
 printf -- '---\nstatus: "accepted"\n---\n' > "$WORK/docs/adr/chat/0003-nested.md"
 r=$(reason_for "$WORK/docs/adr/chat/0003-nested.md")
-has "a nested record gets its own directory as --root" "--root docs/adr/chat" "$r"
+has "a narrowed record is superseded within its scope"  "--scope chat" "$r"
+has "and the suggested id carries the scope"            "--supersedes chat/0003" "$r"
+hasnt "not the bare number, which names another record" "--supersedes 0003 " "$r"
 
 # Telling an agent to supersede an already superseded record aims it at a
 # command the generator refuses. It has to be sent along the chain instead.
