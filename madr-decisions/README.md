@@ -108,6 +108,28 @@ filename check does not recognise.
 
 ## Known gaps
 
+- **Nothing moves a record from `proposed` to `accepted`, and until something does, the guard is
+  asleep.** This is the largest gap, because the rest of the design leans on it. A record leaves the
+  generator as `proposed`; `proposed` means "still a draft" and is therefore editable by any agent,
+  which is what makes filling in the skeleton possible at all. The lock engages only once the status
+  says `accepted` — and no command sets that, the skill tells the agent not to, and nothing prompts
+  anybody. So a record that nobody promotes stays editable forever, and the failure this plugin was
+  written after can happen to it exactly as before.
+
+  **While using it, that promotion is yours to make.** Change the one line by hand, or in the review
+  where the decision is actually agreed; from that moment the record is protected. A record you
+  never promote is a draft, and the plugin will keep treating it as one.
+
+  The open question is not whether to close this but how, and every answer has a cost: a flag makes
+  acceptance a thing an agent can do to itself; a reminder in the skill is one more line of prose
+  asking to be ignored; promoting on merge needs machinery this plugin does not have.
+
+- **A rejected replacement strands the record it superseded.** `--supersedes` flips the old record
+  as soon as the new one is written, while the new one is still only `proposed`. If a human then
+  rejects it, the old decision — which still holds — reads `superseded by <a rejected proposal>`,
+  and the generator refuses to supersede it again because its chain already points somewhere. Fix it
+  by hand: set the old record back to `accepted` and mark the rejected one as what it is.
+
 - **Scope containment is not expressible.** If a scope logically contains another, the script cannot
   tell from the paths and will refuse the supersession. Write the new record at system scope.
 - **No index is generated.** The list of records and their statuses is still maintained by hand.

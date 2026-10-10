@@ -138,6 +138,12 @@ delete it; do not create a second one beside it.
 A freshly written record stays at `proposed`. **Promoting it to `accepted` is a human decision** and
 is not part of writing it — do not set it yourself.
 
+**Say that it is waiting, though.** Finish by naming the record and stating that it stays `proposed`
+until somebody accepts it. Nothing else will raise it: no command sets that status and nothing
+prompts for it, so a record nobody promotes sits as a draft indefinitely — and a draft is editable,
+which means the next agent to come past can rewrite what it says. One sentence in your report is the
+only thing standing between a decision and that.
+
 The rest of the lifecycle is `rejected` and `deprecated` for the cases that never land or stop
 mattering, and `superseded by <id>`, which the script writes for you.
 
