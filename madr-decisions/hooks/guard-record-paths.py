@@ -1,9 +1,13 @@
 """Pick the decision records a tool call is about to write.
 
+NOT A HOOK. `guard-accepted-record.sh` is the hook; nothing registers this file
+and the harness never runs it. It is that script's helper, sharing its `guard-`
+prefix so the two read as one thing, and run by hand it only prints paths.
+
 Reads the harness's PreToolUse JSON on stdin. Prints the session's working
 directory on the first line, then one candidate path per line.
 
-This lives in its own file rather than inside `python3 -c '...'` in the hook,
+It lives in its own file rather than inside `python3 -c '...'` in the hook,
 because the shell's single quotes cannot hold the apostrophes this code needs
 and escaping them turns the logic into noise. It is also one interpreter launch
 instead of three.

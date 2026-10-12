@@ -72,15 +72,17 @@ input=$(cat)
 # bash 5 does not have the problem; grep does not have it anywhere.
 printf '%s' "$input" | grep -qE '[0-9]{4}-[^"]*\.md' || exit 0
 
-# One interpreter launch, in its own file. The path-picking needs apostrophes
-# that a `python3 -c '...'` string cannot hold, and the hook used to start
-# python three times per call: once for the paths, once for an unused tool name,
-# once per candidate for the cwd.
+# One interpreter launch, in a helper beside this file. `guard-record-paths.py`
+# is not a hook of its own — nothing registers it and the harness never runs it;
+# it shares the `guard-` prefix so the two read as one thing. The path-picking
+# needs apostrophes that a `python3 -c '...'` string cannot hold, and this hook
+# used to start python three times per call: once for the paths, once for a tool
+# name nothing read, once per candidate for the cwd.
 #
 # First line of the output is the session's working directory, the rest are
 # candidate paths.
 here=$(cd "$(dirname "$0")" && pwd)
-parsed=$(printf '%s' "$input" | python3 "$here/record-paths.py" 2>/dev/null)
+parsed=$(printf '%s' "$input" | python3 "$here/guard-record-paths.py" 2>/dev/null)
 
 cwd=$(printf '%s\n' "$parsed" | sed -n '1p')
 candidates=$(printf '%s\n' "$parsed" | sed '1d')
