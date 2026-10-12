@@ -50,6 +50,9 @@ done
 
 [[ -n "$ROLE" && -n "$NAME" && -n "$DIR" ]] || { echo "--role, --name and --dir are required" >&2; usage >&2; exit 2; }
 [[ -d "$DIR" ]] || { echo "no such directory: $DIR" >&2; exit 2; }
+# Absolute, because it is typed into a shell that starts somewhere else.
+# CDPATH unset, or cd echoes the path and it lands in DIR twice.
+DIR="$(CDPATH='' cd -- "$DIR" && pwd)"
 
 # The launch line below is TYPED INTO A LIVE SHELL and submitted with Enter, so
 # anything interpolated into it is executable. Blocking shell punctuation is not
@@ -63,6 +66,10 @@ VALID_TOKEN='^[A-Za-z0-9][A-Za-z0-9._:-]*$'
 [[ "$NAME" =~ $VALID_TOKEN ]] || { echo "--name must start with a letter or digit and contain only letters, digits and . _ - : (no spaces) — got: ${NAME}" >&2; exit 2; }
 # EFFORT is interpolated into the same typed line, so it gets the same treatment.
 [[ -z "$EFFORT" || "$EFFORT" =~ $VALID_TOKEN ]] || { echo "--effort must be a plain level name — got: ${EFFORT}" >&2; exit 2; }
+# DIR is typed into the same line, inside single quotes. Paths legitimately hold
+# spaces and most punctuation, so rather than an allowlist: no single quote
+# (it would close the quoting) and no control character (a newline submits).
+[[ "$DIR" != *"'"* && ! "$DIR" =~ [[:cntrl:]] ]] || { echo "--dir must not contain a single quote or a control character — got: ${DIR}" >&2; exit 2; }
 # WAIT reaches $(( ... )), where bash evaluates command substitution: an
 # unvalidated `x[$(...)]` would run in THIS shell, not in the worker's.
 [[ "$WAIT" =~ ^[0-9]+$ ]] || { echo "--wait must be a whole number of seconds — got: ${WAIT}" >&2; exit 2; }
@@ -71,15 +78,34 @@ command -v cmux >/dev/null || { echo "cmux not on PATH; this skill requires cmux
 
 # A terminal surface, not --type agent-session: only a terminal running the
 # claude CLI registers as a peer session that SendMessage can reach.
+#
+# --working-directory is passed for a cmux that honours it, but it cannot be
+# relied on: cmux 0.63 dropped it from new-surface and ignores it, so the shell
+# starts in the pane's directory — typically the main checkout, where a worker
+# that commits before anyone checks commits to the wrong branch. The cd in the
+# launch line below is what actually puts the worker in --dir.
 CREATED="$(cmux new-surface --type terminal --working-directory "$DIR" --focus false)"
 SURFACE="$(printf '%s\n' "$CREATED" | grep -o 'surface:[0-9]\+' | head -1)"
 [[ -n "$SURFACE" ]] || { echo "could not parse surface ref from: $CREATED" >&2; exit 4; }
+
+# cmux does not report a panel's working directory, and retire-worker.sh needs
+# it to find the worktree to remove, so it is recorded here, against the
+# surface it belongs to — before the trust-prompt exit below, since a worker
+# whose prompt is answered by hand runs like any other. A record that cannot be
+# written costs only that cleanup, so it warns rather than failing the spawn.
+STATE_DIR="${AGENT_CREW_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/agent-crew/workers}"
+if ! { mkdir -p "$STATE_DIR" && printf 'surface=%s\ndir=%s\n' "$SURFACE" "$DIR" > "${STATE_DIR}/${NAME}"; } 2>/dev/null; then
+  echo "WARNING: could not record ${NAME}'s directory in ${STATE_DIR};" >&2
+  echo "retire-worker.sh --remove-worktree will refuse for this worker." >&2
+fi
 
 # -n sets the SendMessage address. Without it the session is auto-named after
 # its directory and cannot be addressed predictably.
 # Single-quoted in the typed line as a second layer: the validation above
 # already excludes a quote, so nothing can close them.
-LAUNCH="claude --agent '${ROLE}' -n '${NAME}' --permission-mode auto"
+# `&&`, so that if the cd fails claude does not start at all rather than start
+# in the wrong place.
+LAUNCH="cd '${DIR}' && claude --agent '${ROLE}' -n '${NAME}' --permission-mode auto"
 if [[ -n "$EFFORT" ]]; then
   LAUNCH="${LAUNCH} --effort '${EFFORT}'"
 fi

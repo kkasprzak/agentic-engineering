@@ -97,6 +97,11 @@ inspection, and a viewport is large enough that reading one is not free.
 `${CLAUDE_SKILL_DIR}/scripts/retire-worker.sh --name <name>` finds the panel by title and closes it. Add
 `--remove-worktree` to clear the directory up too.
 
+The directory comes from a record `spawn-worker.sh` writes at launch, because cmux does not report
+a panel's working directory. A worker spawned without one — before this record existed, or in a
+panel other than the one now carrying its name — makes `--remove-worktree` exit 7 having closed
+nothing; retire it without the flag and remove the worktree by hand once you have checked it.
+
 It refuses to remove a worktree holding uncommitted changes or commits that never reached a remote,
 and prints what it found. Override with `--force-worktree` only once you have looked. The manual
 equivalent is `git worktree remove --force`, which discards a worker's unpushed work without
