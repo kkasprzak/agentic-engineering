@@ -52,10 +52,19 @@ printf '  payload: %s KB of timestamped log lines\n' "$(( ${#payload} / 1024 ))"
 
 start=$(python3 -c 'import time; print(int(time.time() * 1000))')
 printf '%s' "$payload" | "$GUARD" >/dev/null 2>&1
+# The guard's own status, not the pipeline's. Without this a guard replaced by
+# `exit 1` reports a fast pass: it is quick, and quick was the only thing being
+# measured. Verified — that mutation printed "ok ... in 221 ms" before this
+# line existed.
+guard_status=${PIPESTATUS[1]}
 end=$(python3 -c 'import time; print(int(time.time() * 1000))')
 elapsed=$(( end - start ))
 
-if [ "$elapsed" -le "$LIMIT_MS" ]; then
+if [ "$guard_status" -ne 0 ]; then
+  printf '  FAIL guard exited %s on a payload it should wave through\n' "$guard_status"
+  printf '       A fast answer is only worth measuring if it is also an answer.\n'
+  fail=1
+elif [ "$elapsed" -le "$LIMIT_MS" ]; then
   printf '  ok   gate returns in %s ms (limit %s)\n' "$elapsed" "$LIMIT_MS"
 else
   printf '  FAIL gate took %s ms, limit is %s\n' "$elapsed" "$LIMIT_MS"

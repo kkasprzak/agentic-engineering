@@ -7,12 +7,20 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# These jobs check out the pull request's own code and run it. Least privilege
+# is therefore the default rather than a precaution: nothing here needs to write
+# anything back, and a token that can write is a token a test script can use.
+permissions:
+  contents: read
+
 jobs:
   syntax:
     name: syntax
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: shell scripts parse
         run: |
@@ -75,6 +83,8 @@ jobs:
             label: BSD, bash 3.2
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: what this is running on
         run: |
@@ -105,6 +115,8 @@ jobs:
         run: apk add --no-cache bash perl python3 git
 
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: what this is running on
         run: |
@@ -125,6 +137,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
