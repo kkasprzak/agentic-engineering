@@ -128,24 +128,41 @@ Then open the file it named and fill it in. If `Considered Options` has one entr
 decision to record; write it down somewhere cheaper.
 
 **`decision-makers`, `consulted` and `informed` are optional.** Leave them empty unless you actually
-know who they were — a name you inferred is the same failure as a reason you invented.
+know who they were — a name you inferred is the same failure as a reason you invented. They are
+often unknown while the record is being written and obvious by the time it is accepted, which is
+why `set-status.sh` can fill them in later.
 
 **If you find a record that is still all placeholders**, it was generated and abandoned. Fill it or
 delete it; do not create a second one beside it.
 
 ## Status
 
-A freshly written record stays at `proposed`. **Promoting it to `accepted` is a human decision** and
-is not part of writing it — do not set it yourself.
+A freshly written record stays at `proposed`, and it stays editable while it is one — that is how
+the skeleton gets filled in. Accepting it is what makes it history and puts it beyond an agent's
+reach.
 
-**Say that it is waiting, though.** Finish by naming the record and stating that it stays `proposed`
-until somebody accepts it. Nothing else will raise it: no command sets that status and nothing
-prompts for it, so a record nobody promotes sits as a draft indefinitely — and a draft is editable,
-which means the next agent to come past can rewrite what it says. One sentence in your report is the
-only thing standing between a decision and that.
+```bash
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 accepted --decision-makers "Ana, Bo"
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 rejected
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 deprecated
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 --consulted "DBA guild"   # fields only
+```
 
-The rest of the lifecycle is `rejected` and `deprecated` for the cases that never land or stop
-mattering, and `superseded by <id>`, which the script writes for you.
+Three moves, and nothing else: `proposed → accepted`, `proposed → rejected`, `accepted →
+deprecated`. A record is never reopened, and `superseded by <id>` is not a status you set — that is
+`--supersedes`, which writes the replacement and flips this one together.
+
+**This script is deliberately absent from `allowed-tools`, so running it asks the user first.** That
+prompt is the decision. Propose the command when the person you are working with has said the
+decision is made; do not run it because the record looks finished to you. An agent that accepts its
+own record has locked everyone else out of a conclusion nobody confirmed.
+
+**Say when a record is waiting.** Finish by naming it and stating that it stays `proposed` until
+somebody accepts it. Nothing raises it on its own, and a draft nobody promotes is a draft the next
+agent may rewrite.
+
+MADR itself defines none of this: its template calls every frontmatter field optional and ends its
+status list with an ellipsis. The three moves are this plugin's rule, chosen to catch mistakes.
 
 `RFC` is not one of these. An RFC is a different kind of document — speculative, pre-decision, open
 for comment — and a record parked in that state is usually a decision that was made long ago and

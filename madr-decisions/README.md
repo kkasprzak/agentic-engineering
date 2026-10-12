@@ -32,6 +32,17 @@ around — `madr-decisions/tests/test-new-decision.sh`, which exits non-zero whe
 needs `perl` for its timeout and `python3` for the guard's suite; where either is missing the cases
 that depend on it say so and are skipped rather than reported as passes.
 
+**Moves a record along its lifecycle, and asks a person before it does.** `set-status.sh` makes
+three moves — `proposed → accepted`, `proposed → rejected`, `accepted → deprecated` — and fills in
+`decision-makers`, `consulted` and `informed`, which are usually unknown while a record is being
+written and obvious once it is agreed. It changes the one line it was asked to and leaves `date`
+alone.
+
+Unlike the generator, **this script is not in the skill's `allowed-tools`**, so every run stops for
+the user's approval. Accepting a record is what arms the guard below; if an agent could do it
+unprompted it could lock its own work against everyone else. The approval prompt is the human
+decision, enforced by the harness rather than requested in prose.
+
 **Refuses the edit that caused all this, at the moment it is attempted.** Generating a good record
 does nothing about an agent opening an accepted one six months later and bringing it up to date, and
 by then no skill is loaded to object. A `PreToolUse` hook sits on `Edit` and `Write` and reads the
@@ -86,6 +97,30 @@ documented as *"when the decision was last updated"*. The rule in this skill fol
 > When the team accepts an ADR, it becomes immutable. If new insights require a different decision,
 > the team proposes a new ADR.
 
+## Where this departs from MADR, and why
+
+Checked against MADR's template and its own decision records, so that the next person can tell this
+plugin's rules from the format's.
+
+**MADR requires nothing at all.** Its template says of the frontmatter: *"These are optional
+metadata elements. Feel free to remove any of them."* Its status list —
+`{proposed | rejected | accepted | deprecated | … | superseded by ADR-0123}` — ends in an ellipsis
+on purpose, and [ADR-0008](https://github.com/adr/madr/blob/main/docs/decisions/0008-add-status-field.md),
+where MADR decided to have a status field at all, describes no lifecycle, no permitted transitions
+and no field that must change alongside the status. So:
+
+| this plugin | MADR | why |
+|---|---|---|
+| three transitions, everything else refused | no transitions defined | a closed set catches mistakes; an open one cannot |
+| `date` is the day the record was written and never changes | *"when the decision was last updated"* | a record is dated history here, so the date of the decision is the useful one |
+| `superseded by 0014` | `superseded by ADR-0123` | identifiers are directory-relative here, and `chat/0014` has no natural `ADR-` form |
+| a record is immutable once accepted | no such rule | see above |
+
+One thing worth adopting that is not here yet: [ADR-0009](https://github.com/adr/madr/blob/main/docs/decisions/0009-support-links-between-adrs-inside-an-adrs.md)
+decided that a link from one record to another belongs in **More Information**, written as an
+ordinary markdown link. That is MADR's own answer to the missing back-reference listed under known
+gaps.
+
 ## Install
 
 ```bash
@@ -108,21 +143,11 @@ filename check does not recognise.
 
 ## Known gaps
 
-- **Nothing moves a record from `proposed` to `accepted`, and until something does, the guard is
-  asleep.** This is the largest gap, because the rest of the design leans on it. A record leaves the
-  generator as `proposed`; `proposed` means "still a draft" and is therefore editable by any agent,
-  which is what makes filling in the skeleton possible at all. The lock engages only once the status
-  says `accepted` — and no command sets that, the skill tells the agent not to, and nothing prompts
-  anybody. So a record that nobody promotes stays editable forever, and the failure this plugin was
-  written after can happen to it exactly as before.
-
-  **While using it, that promotion is yours to make.** Change the one line by hand, or in the review
-  where the decision is actually agreed; from that moment the record is protected. A record you
-  never promote is a draft, and the plugin will keep treating it as one.
-
-  The open question is not whether to close this but how, and every answer has a cost: a flag makes
-  acceptance a thing an agent can do to itself; a reminder in the skill is one more line of prose
-  asking to be ignored; promoting on merge needs machinery this plugin does not have.
+- **A record nobody promotes stays a draft, and a draft is editable.** `set-status.sh` exists now,
+  and the permission prompt is what makes acceptance a person's decision — but nothing *reminds*
+  anybody to run it. The skill tells the agent to say a record is waiting, and that is all the
+  prompting there is. A record left at `proposed` for a year is unprotected for a year, which is
+  correct behaviour for a draft and a trap for a decision somebody forgot to confirm.
 
 - **A rejected replacement strands the record it superseded.** `--supersedes` flips the old record
   as soon as the new one is written, while the new one is still only `proposed`. If a human then
