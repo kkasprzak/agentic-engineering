@@ -100,6 +100,14 @@ check_value() {
     *"$newline"*)
       echo "refusing: $1 must be a single line" >&2
       exit 1 ;;
+    *": "*)
+      echo "refusing: $1 must not contain \": \" — YAML would read the rest" >&2
+      echo "  of the line as a nested key and the frontmatter would stop parsing." >&2
+      exit 1 ;;
+    "#"*)
+      echo "refusing: $1 must not start with # — YAML reads that as a comment" >&2
+      echo "  and the value becomes empty." >&2
+      exit 1 ;;
   esac
 }
 [ "$set_makers"    -eq 1 ] && check_value --decision-makers "$makers"
@@ -227,7 +235,11 @@ fi
 # a fields-only call rewrote `decision-makers` on an accepted, rejected or
 # superseded record. That is a write into settled history, and one the guard
 # hook cannot see, because this script writes through awk rather than Edit.
-if [ -z "$new_status" ] && [ "$current" != "proposed" ]; then
+# Not `[ -z "$new_status" ] && ...`: that only caught a fields-only call, so
+# attaching the fields to a legal move out of `accepted` rewrote them anyway.
+# The rule is about the state the record is in now, not about what else the
+# call happens to do.
+if [ "$set_makers$set_consulted$set_informed" != "000" ] && [ "$current" != "proposed" ]; then
   {
     echo "refusing: $id is \"${current}\", so its fields are history too."
     echo
@@ -337,7 +349,7 @@ awk -v want_status="$new_status" \
   # which is invalid YAML, so the whole run is abandoned instead.
   # Exit 3 rather than writing a message: "/dev/stderr" is not something every
   # awk can open, and the shell knows which key was asked for anyway.
-  infm && pending_list && line ~ /^[[:space:]]+-[[:space:]]/ { exit 3 }
+  infm && pending_list && line ~ /^[[:space:]]*-[[:space:]]/ { exit 3 }
   infm { pending_list = "" }
 
   infm && index(line, "decision-makers:") == 1 {

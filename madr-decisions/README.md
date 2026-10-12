@@ -23,7 +23,7 @@ There was nothing to sync. There was a new record to write.
 
 **Generates the record instead of describing the format.** A model which already knows MADR can
 still write something close but not exact. A model which starts from a generated skeleton cannot.
-The script picks the number, the path and the filename, and writes the frontmatter with MADR five
+The script picks the number, the path and the filename, and writes the frontmatter with MADR's five
 keys and nothing more. A sixth field of your own is how a format stops being a format.
 
 **Supersedes by writing, not by editing.** `--supersedes` creates the new record and changes exactly
@@ -61,16 +61,21 @@ record says whether it is still open, and a person accepting it is what locks it
 **It protects what this plugin generated, and only that.** A file qualifies when its name is four
 digits and a slug, **and** its frontmatter status is one which MADR defines. This excludes on
 purpose a status the plugin never heard about, and a four digit prefix which is really a date. A
-guard which fires on somebody blog post does not only annoy. The refusal prints a command which can
+guard which fires on somebody's blog post does not only annoy. The refusal prints a command which can
 be run, and an agent which follows it rewrites the frontmatter of that post. Records under another
 convention (`ADR-0001-`, `001-`, a `## Status` section instead of frontmatter) are not protected at
 all.
 
 **Both routes to a record are covered.** `Edit` and `Write` name their target, so those are simple.
 A `Bash` call carries only a command string, and whether that string writes a given file cannot be
-decided in general. So the shell side looks for a path shaped like a record, and acts only when the
-command also looks like a write: a redirect, an in-place `sed` or `perl`, `tee`, `cp`, `mv`, a
-`python` open for writing. Reading a record is never blocked.
+decided in general. So the shell side asks a narrower question: is this record the **target** of a
+write in this command. A redirect straight onto it, an in-place `sed`, `gsed`, `perl` or `ed`, a
+`tee`, a `cp` or `mv` whose destination it is, a `python` open for writing. Reading it, grepping it,
+copying it somewhere else, or only naming it in a command which writes another file are all allowed.
+
+The first version asked the wider question, and refused `grep status 0014-x.md 2>/dev/null`, because
+`2>` is a redirect and the record was mentioned. A guard which blocks reading is a guard somebody
+turns off, and then it protects nothing at all.
 
 This was argued the other way at the beginning: that catching nine spellings and missing the tenth
 only looks like protection. Then a live Claude Code session was asked to accept a record. It reached
@@ -104,7 +109,7 @@ other modules. The refusal says where the record belongs instead.
 ## What it does not contain
 
 A description of the MADR format. This was measured, not assumed: a session with no template and no
-hints reproduced MADR five frontmatter keys and all eight headings in order, then wrote a correct
+hints reproduced MADR's five frontmatter keys and all eight headings in order, then wrote a correct
 document without help. A copy here would spend context for nothing and go stale against the real
 template.
 
@@ -116,7 +121,7 @@ documented as *"when the decision was last updated"*. The rule in this skill com
 
 ## Where this departs from MADR, and why
 
-Checked against the MADR template and against their own decision records, so the next person can see
+Checked against the MADR template and against MADR's own decision records, so the next person can see
 which rules belong to this plugin and which to the format.
 
 **MADR requires nothing at all.** Its template says about the frontmatter: *"These are optional
@@ -151,7 +156,7 @@ the JSON from the harness with it, instead of grepping for a file path, because 
 spaces, quotes or backslashes and the grep version works until the day it does not. **Without
 `python3` the guard cannot read its input, so it allows the edit.** It says so on stderr instead of
 failing closed, because a guard which blocks every session is worse than one which is honest about
-being inert. The test suites want also `perl`.
+being inert. The test suites also want `perl`.
 
 Verified on macOS (bash 3.2, BSD tools) and on Linux, under GNU and under BusyBox. Windows is not
 tested and the guard is probably inert there. `file_path` arrives with backslashes, which the
@@ -185,6 +190,9 @@ filename check does not recognise.
 - **A shell command which builds its path at run time gets past the guard.** The hook reads the
   command text, so `sed -i ... docs/adr/0014-x.md` is refused, but
   `F=docs/adr/0014-x.md; sed -i ... $F` is not. It does not run shells and cannot resolve variables.
+  The same holds for any writer the hook does not recognise: it knows redirects, `sed`, `gsed`,
+  `perl`, `ruby`, `awk`, `ed`, `ex`, `tee`, `cp`, `mv`, `install`, `rsync` and a `python` open for
+  writing, and nothing else.
 - **A record written entirely through the shell still goes around the generator**, which is not
   involved at creation unless somebody runs it.
 - **A new record does not say what it supersedes.** The old record gets `superseded by <id>`, the new

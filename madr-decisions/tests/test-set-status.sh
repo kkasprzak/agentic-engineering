@@ -294,6 +294,43 @@ echo "set-status.sh"
   check "and they landed" "$(grep '^decision-makers:' docs/adr/0000-together.md)" "decision-makers: Ana"
 )
 
+# The lifecycle check used to require a fields-ONLY call, so attaching fields to
+# a legal move out of `accepted` rewrote them anyway. The rule is about the
+# state the record is in, not about what else the call does.
+( workdir
+  "$NEW" "Smuggled" >/dev/null 2>&1
+  "$SET" 0000 accepted --decision-makers "Ana" >/dev/null 2>&1
+  "$SET" 0000 deprecated --decision-makers "Mallory" >/dev/null 2>&1
+  check "fields cannot ride along on a legal transition" "$?" "2"
+  check "and the original names survive" \
+        "$(grep '^decision-makers:' docs/adr/0000-smuggled.md)" "decision-makers: Ana"
+)
+
+# A block sequence does not have to be indented to be a block sequence.
+( workdir
+  mkdir -p docs/adr
+  printf -- '---\nstatus: "proposed"\nconsulted:\n- Ana\n- Bo\n---\n' > docs/adr/0000-flat-list.md
+  cp docs/adr/0000-flat-list.md /tmp/flat-before.$$
+  "$SET" 0000 --consulted "DBA guild" >/dev/null 2>&1
+  check "an unindented block list is refused too" "$?" "2"
+  check "and is left alone" "$(changed_lines /tmp/flat-before.$$ docs/adr/0000-flat-list.md)" "0"
+  rm -f /tmp/flat-before.$$
+)
+
+# A value that cannot be a plain YAML scalar breaks the frontmatter for every
+# reader, including this plugin's own.
+( workdir
+  "$NEW" "Colon" >/dev/null 2>&1
+  "$SET" 0000 accepted --consulted 'Ana: the DBA' >/dev/null 2>&1
+  check "a value containing a colon-space is refused" "$?" "1"
+)
+
+( workdir
+  "$NEW" "Hash" >/dev/null 2>&1
+  "$SET" 0000 accepted --consulted '#platform' >/dev/null 2>&1
+  check "a value starting with a hash is refused" "$?" "1"
+)
+
 ( workdir
   mkdir -p docs/notes
   printf -- '---\nstatus: published\n---\n' > docs/notes/0009-post.md

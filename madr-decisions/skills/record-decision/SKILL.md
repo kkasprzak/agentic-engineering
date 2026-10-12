@@ -38,9 +38,10 @@ format does not carry.
   *then*. When the code moves on, the record does not become wrong — it becomes superseded.
   Rewriting its original sections to match today's code destroys the only copy of what was decided.
   Editing such a record is refused by this plugin, and the refusal names the command to run instead.
-  **The shell is refused too** — `sed -i`, a redirect, `tee` — so treat the refusal as this rule
-  arriving at the moment it applies rather than as an obstacle with a way round it. A path the shell
-  assembles at run time does slip past, and that is a gap in the guard, not permission.
+  **The shell is refused too** when the record is the thing being written: `sed -i`, a redirect onto
+  it, `tee`, a `cp` or `mv` landing on it. Treat the refusal as this rule arriving at the moment it
+  applies, not as an obstacle with a way round it. Reading the record is never blocked. A path the
+  shell assembles at run time does slip past, and that is a gap in the guard, not permission.
 - **The tell is in the commit message.** "The record no longer describes something that does not
   exist" means the author has mistaken a dated record for documentation to keep in sync. There is
   nothing to sync; there is a new record to write.
@@ -171,6 +172,10 @@ everyone else out of a conclusion nobody confirmed.
 you changing its status with `Edit` or with `sed`. Doing it turns the lock on without anybody
 agreeing to the decision, and leaves a record that says it was accepted by somebody who never saw
 it.
+
+The prompt is also not forever: a user who answers "do not ask again", or whose settings allow
+`Bash` broadly, stops being asked. So treat the asking as a courtesy the harness happens to provide,
+and the rule above as the thing that actually holds.
 
 **Say when a record is waiting.** Finish by naming it and stating that it stays `proposed` until
 somebody accepts it. Nothing raises it on its own, and a draft nobody promotes is a draft the next

@@ -88,33 +88,72 @@ ti = d.get("tool_input") or {}
 if name == "Bash":
     cmd = ti.get("command", "") or ""
 
-    # Reading a record must stay free. `cat 0014-x.md` names a record and
-    # changes nothing, and a guard that refuses it is a guard somebody turns
-    # off. So the command has to look like a write before any path matters.
-    WRITES = [
-        r">>?",                      # any redirect
-        r"\bsed\b[^|;&]*\s-i\b",     # in-place sed
-        r"\bperl\b[^|;&]*\s-i\b",
-        r"\bawk\b[^|;&]*-i[ =]inplace",
-        r"\btee\b", r"\bcp\b", r"\bmv\b", r"\bdd\b", r"\btruncate\b",
-        r"open\([^)]*[\"'\''][wa]",  # python open(..., "w")
-    ]
-    if not any(re.search(p, cmd) for p in WRITES):
-        sys.exit(0)
+    # The question is never "does this command write something" but "is THIS
+    # record the thing it writes". Asking the first one refused
+    # `grep status 0014-x.md 2>/dev/null`, because `2>` contains a redirect and
+    # the record was mentioned somewhere — a guard that blocks reading is a
+    # guard that gets switched off, and then it protects nothing at all.
+    #
+    # So each candidate path is judged by what sits in front of that particular
+    # occurrence.
+    IN_PLACE = re.compile(
+        r"""(?:^|[|;&]|\s)                 # start of a simple command
+            (?:[\w./-]*/)?                 # optional directory, so /usr/bin/sed
+            (?:g?sed|perl|ruby|gawk|awk)\b # the editors that rewrite in place
+            (?![^|;&]*\b(?:-e\s|--expression))?  # (-e alone is not in-place)
+            [^|;&]*?
+            (?:\s-{1,2}i(?:n-place)?\b     # -i, --in-place
+              |\s-[a-z]*i[a-z]*\b          # bundled, as in perl -pi -e
+              |-i[ =]inplace\b)            # gawk -i inplace
+        """, re.X)
+    TEE = re.compile(r"(?:^|[|;&]|\s)(?:[\w./-]*/)?tee\b")
+    COPIER = re.compile(r"(?:^|[|;&]|\s)(?:[\w./-]*/)?(?:cp|mv|install|rsync)\b")
+    LINE_ED = re.compile(r"(?:^|[|;&]|\s)(?:[\w./-]*/)?e[dx]\b")
+    PY_WRITE = re.compile(r"""open\([^)]*["'\''][wa]""")
+
+    def writes(path, at):
+        """Is `path`, appearing at offset `at`, the target of a write?"""
+        before = cmd[:at]
+        # A redirect immediately before it. `2>` and `1>` and `&>` send a
+        # stream somewhere else and are not this record being written.
+        if re.search(r"(?<![0-9&])>>?\s*$", before):
+            return True
+        # Everything after the last shell separator is the simple command this
+        # path belongs to; a writer in a previous command says nothing here.
+        simple = re.split(r"[|;&]|\&\&", before)[-1]
+        if IN_PLACE.search(simple) or TEE.search(simple) or LINE_ED.search(simple):
+            return True
+        if COPIER.search(simple):
+            # Only the destination is written, and that is the last operand.
+            rest = cmd[at + len(path):]
+            if not re.search(r"\S", rest.split("|")[0].split(";")[0]):
+                return True
+        # A python one-liner opening a file for writing. Picking out which
+        # argument is the path means parsing python, so the test is coarser:
+        # the command opens something for writing and names this record.
+        if PY_WRITE.search(cmd):
+            return True
+        return False
 
     # `cd docs/adr && sed -i ... 0014-x.md` leaves the filename relative to a
-    # directory the hook is not standing in. Collect what the command cd-ed to
-    # and try the bare name under each.
-    prefixes = [""] + [d.strip("\"'\'' ") for d in re.findall(r"\bcd\s+([^\s;&|]+)", cmd)]
+    # directory the hook is not standing in. Collect what the command cd-ed to,
+    # composing them, so `cd docs && cd adr` resolves as well.
+    cds = [d.strip("\"'\'' ") for d in re.findall(r"\bcd\s+([^\s;&|]+)", cmd)]
+    prefixes = [""]
+    acc = ""
+    for d in cds:
+        acc = d if d.startswith("/") else (acc.rstrip("/") + "/" + d if acc else d)
+        prefixes.append(acc)
 
-    # Anything shaped like a generated record filename, with whatever directory
-    # was written in front of it. Quotes and the usual shell punctuation end it.
-    for m in re.findall(r"""[^\s"'\''<>|;&()]*\b[0-9]{4}-[^\s"'\''<>|;&()]*\.md""", cmd):
-        print(m)
-        if "/" not in m:
+    PATH_RE = re.compile(r"""[^\s"'\''<>|;&()]*\b[0-9]{4}-[^\s"'\''<>|;&()]*\.md""")
+    for m in PATH_RE.finditer(cmd):
+        if not writes(m.group(0), m.start()):
+            continue
+        print(m.group(0))
+        if "/" not in m.group(0):
             for pre in prefixes:
                 if pre:
-                    print(pre.rstrip("/") + "/" + m)
+                    print(pre.rstrip("/") + "/" + m.group(0))
 else:
     p = ti.get("file_path", "")
     if p:

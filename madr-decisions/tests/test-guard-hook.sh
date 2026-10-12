@@ -259,6 +259,42 @@ bexpect "a command with no record in it is allowed" \
 bexpect "a path assembled from a variable gets through" \
         "F=docs/adr/0050-settled.md; sed -i '' 's/a/b/' \$F" allow
 
+# A redirect anywhere in the command used to count as "this is a write", so a
+# record merely mentioned in a reading command was refused. That is the shape of
+# false positive which gets a guard switched off, and these pin it from several
+# directions.
+bexpect "stderr redirected away is not a write to the record" \
+        "grep status docs/adr/0050-settled.md 2>/dev/null" allow
+bexpect "nor is 2>&1 on a read" \
+        "head -5 docs/adr/0050-settled.md 2>&1" allow
+bexpect "a record read INTO another file is not a write to it" \
+        "cat docs/adr/0050-settled.md > /tmp/copy.md" allow
+bexpect "mentioning a record while appending elsewhere is allowed" \
+        "echo 'see docs/adr/0050-settled.md' >> NOTES.md" allow
+bexpect "copying a record out leaves it alone" \
+        "cp docs/adr/0050-settled.md /tmp/backup.md" allow
+bexpect "but copying over a record is refused" \
+        "cp /tmp/anything.md docs/adr/0050-settled.md" deny
+
+# Writers the first version missed. `perl -pi -e` is the standard idiom and
+# `gsed` is what Homebrew installs, so neither is exotic.
+bexpect "perl -pi -e is caught" \
+        "perl -pi -e 's/a/b/' docs/adr/0050-settled.md" deny
+bexpect "gsed is caught" \
+        "gsed -i '' 's/a/b/' docs/adr/0050-settled.md" deny
+bexpect "--in-place is caught" \
+        "sed --in-place 's/a/b/' docs/adr/0050-settled.md" deny
+bexpect "an absolute path to the editor is caught" \
+        "/usr/bin/sed -i '' 's/a/b/' docs/adr/0050-settled.md" deny
+bexpect "a line editor is caught" \
+        "ed -s docs/adr/0050-settled.md" deny
+bexpect "chained cd is composed" \
+        "cd docs && cd adr && sed -i '' 's/a/b/' 0050-settled.md" deny
+
+# A writer in an earlier command says nothing about a later one.
+bexpect "a writer before the separator does not taint a later read" \
+        "sed -i '' 's/x/y/' /tmp/other.txt; cat docs/adr/0050-settled.md" allow
+
 pass=$(grep -c '^ok$'   "$RESULTS" || true)
 fail=$(grep -c '^fail$' "$RESULTS" || true)
 
