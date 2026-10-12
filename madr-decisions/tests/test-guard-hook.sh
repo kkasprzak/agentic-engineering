@@ -209,6 +209,56 @@ r=$(reason_for "$WORK/docs/adr/0005-declined.md")
 hasnt "a rejected record is not offered as a supersede target" "--supersedes 0005" "$r"
 has   "and a fresh record is offered instead" "--root docs/adr" "$r"
 
+# --- the shell path ----------------------------------------------------------
+#
+# A live agent asked to accept a record reached for `sed -i` on its first try,
+# with a literal path, and nothing stopped it: the Edit matcher never sees
+# inside a Bash command. These pin the second route.
+#
+# Two failure directions matter equally. Missing a write leaves the hole open;
+# refusing a read blocks ordinary work, and a guard that does that gets switched
+# off, which leaves the same hole open by another road.
+
+mkdir -p "$WORK/docs/adr"
+printf -- '---\nstatus: "accepted"\ndate: 2026-01-01\n---\n' > "$WORK/docs/adr/0050-settled.md"
+printf -- '---\nstatus: "proposed"\ndate: 2026-01-01\n---\n' > "$WORK/docs/adr/0051-draft.md"
+
+bash_verdict() {
+  out=$(printf '{"cwd":"%s","tool_name":"Bash","tool_input":{"command":%s}}' "$WORK" \
+        "$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$1")" \
+        | "$GUARD" 2>/dev/null)
+  case "$out" in *'"deny"'*) echo deny ;; *) echo allow ;; esac
+}
+bexpect() {
+  got=$(cd "$WORK" && bash_verdict "$2")
+  if [ "$got" = "$3" ]; then ok "$1"; else bad "$1" "expected $3, got $got"; fi
+}
+
+bexpect "sed -i on a settled record is refused" \
+        "sed -i '' 's/a/b/' docs/adr/0050-settled.md" deny
+bexpect "a redirect over a settled record is refused" \
+        "cat /dev/null > docs/adr/0050-settled.md" deny
+bexpect "tee into a settled record is refused" \
+        "echo x | tee docs/adr/0050-settled.md" deny
+bexpect "python writing a settled record is refused" \
+        "python3 -c \"open('docs/adr/0050-settled.md','w').write('x')\"" deny
+bexpect "a cd before the write is followed" \
+        "cd docs/adr && sed -i '' 's/a/b/' 0050-settled.md" deny
+
+bexpect "sed -i on a draft is allowed" \
+        "sed -i '' 's/a/b/' docs/adr/0051-draft.md" allow
+bexpect "reading a settled record is allowed" \
+        "cat docs/adr/0050-settled.md" allow
+bexpect "grepping a settled record is allowed" \
+        "grep status docs/adr/0050-settled.md" allow
+bexpect "a command with no record in it is allowed" \
+        "npm test -- --watch=false" allow
+
+# Known and documented rather than silently missing: a path the hook cannot see
+# because the shell builds it at run time.
+bexpect "a path assembled from a variable gets through" \
+        "F=docs/adr/0050-settled.md; sed -i '' 's/a/b/' \$F" allow
+
 pass=$(grep -c '^ok$'   "$RESULTS" || true)
 fail=$(grep -c '^fail$' "$RESULTS" || true)
 

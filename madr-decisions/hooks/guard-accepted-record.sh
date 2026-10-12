@@ -20,14 +20,22 @@
 # tells the agent to do — is never blocked. The moment a human accepts it, the
 # same file becomes read-only to an agent without anything else changing.
 #
-# What this does NOT cover: a file written through the shell. PreToolUse fires
-# for the Bash tool as a whole, not for the redirection inside it, so
-# `sed -i` or `cat > record.md` goes around this guard. That is a real hole and
-# not one worth plugging with command patterns — there are unlimited ways to
-# write a file from a shell, and a guard that catches nine of them reads as
-# cover while the tenth walks through. The skill's own instruction to edit
-# files with Edit and Write rather than shell substitution is what keeps an
-# agent on the covered path.
+# Two routes reach a record, and both are covered. `Edit` and `Write` name their
+# target, so those are simple. A `Bash` call does not: it carries one string, and
+# whether that string writes a given file is not decidable in general. So the
+# shell side reads the command, looks for a path shaped like a record, and only
+# acts when the command also looks like a write — a redirect, an in-place sed or
+# perl, tee, cp, mv, a python open for writing. Reading a record stays free.
+#
+# This used to be argued the other way: that catching nine spellings and missing
+# the tenth reads as cover without being it. Then a live agent was asked to
+# accept a record and reached for `sed -i` on its first try, with a literal path,
+# and nothing stopped it. The tenth spelling is exotic; the first is what
+# actually happens.
+#
+# What still gets through, and the README says so: a path the shell assembles at
+# run time. `F=docs/adr/0014-x.md; sed -i ... $F` has no record in the command
+# text, and this hook does not run shells.
 set -uo pipefail
 
 # Without python3 this hook cannot read the harness's JSON and cannot emit a
@@ -45,29 +53,90 @@ fi
 
 input=$(cat)
 
+# The cheap gate, before python starts. This hook is on every Edit, Write and
+# Bash call in every session the plugin is enabled in, and the overwhelming
+# majority of them have nothing to do with a decision record. A record filename
+# is four digits, a dash and `.md`; if nothing in the payload looks like one,
+# there is nothing here to protect and the expensive part never runs.
+#
+# This replaced a list of eleven `if: "Bash(sed *)"` entries in hooks.json. The
+# list was both redundant — the script has to decide whether a command writes
+# anyway, so it could not trust the filter — and incomplete, with no `ex`, `ed`,
+# `install`, `gsed` or an absolute path to any of them. One matcher and one
+# decision beat eleven lines that have to be kept in step with nothing.
+case "$input" in
+  *[0-9][0-9][0-9][0-9]-*.md*) ;;
+  *) exit 0 ;;
+esac
+
 # python3 rather than jq: a file path can contain spaces, quotes and backslashes,
 # and grepping JSON for it works until the day it does not. python3 is already
 # what this repository's other plugin scripts parse JSON with.
-read -r tool_name file_path <<EOF
-$(printf '%s' "$input" | python3 -c '
-import json, sys
+# For Edit and Write the target is one field. For Bash there is no target, only
+# a command string, so the paths have to be picked out of it. That path is
+# narrower on purpose and the README says how far it reaches: a literal record
+# path in the command is caught, a path assembled from a variable is not.
+candidates=$(printf '%s' "$input" | python3 -c '
+import json, re, sys
 try:
     d = json.load(sys.stdin)
 except Exception:
     sys.exit(0)
 name = d.get("tool_name", "")
-path = (d.get("tool_input") or {}).get("file_path", "")
-# One line, two fields; the path is last so spaces in it survive the read.
-print(name, path)
+ti = d.get("tool_input") or {}
+
+if name == "Bash":
+    cmd = ti.get("command", "") or ""
+
+    # Reading a record must stay free. `cat 0014-x.md` names a record and
+    # changes nothing, and a guard that refuses it is a guard somebody turns
+    # off. So the command has to look like a write before any path matters.
+    WRITES = [
+        r">>?",                      # any redirect
+        r"\bsed\b[^|;&]*\s-i\b",     # in-place sed
+        r"\bperl\b[^|;&]*\s-i\b",
+        r"\bawk\b[^|;&]*-i[ =]inplace",
+        r"\btee\b", r"\bcp\b", r"\bmv\b", r"\bdd\b", r"\btruncate\b",
+        r"open\([^)]*[\"'\''][wa]",  # python open(..., "w")
+    ]
+    if not any(re.search(p, cmd) for p in WRITES):
+        sys.exit(0)
+
+    # `cd docs/adr && sed -i ... 0014-x.md` leaves the filename relative to a
+    # directory the hook is not standing in. Collect what the command cd-ed to
+    # and try the bare name under each.
+    prefixes = [""] + [d.strip("\"'\'' ") for d in re.findall(r"\bcd\s+([^\s;&|]+)", cmd)]
+
+    # Anything shaped like a generated record filename, with whatever directory
+    # was written in front of it. Quotes and the usual shell punctuation end it.
+    for m in re.findall(r"""[^\s"'\''<>|;&()]*\b[0-9]{4}-[^\s"'\''<>|;&()]*\.md""", cmd):
+        print(m)
+        if "/" not in m:
+            for pre in prefixes:
+                if pre:
+                    print(pre.rstrip("/") + "/" + m)
+else:
+    p = ti.get("file_path", "")
+    if p:
+        print(p)
 ' 2>/dev/null)
-EOF
+
+tool_name=$(printf '%s' "$input" | python3 -c '
+import json, sys
+try:    print(json.load(sys.stdin).get("tool_name", ""))
+except Exception: pass
+' 2>/dev/null)
 
 # Anything we could not parse is not something to block on. A guard that fails
 # closed on malformed input would stop the session over its own bug.
-[ -n "${file_path:-}" ] || exit 0
-[ -f "$file_path" ] || exit 0          # a new file is not yet a record
+[ -n "${candidates:-}" ] || exit 0
 
-case "$file_path" in *.md) ;; *) exit 0 ;; esac
+# One call can name several records — a shell command can touch more than one.
+# The first settled record found ends the call, because one is enough to refuse.
+examine() {
+file_path="$1"
+[ -f "$file_path" ] || return 0        # a new file is not yet a record
+case "$file_path" in *.md) ;; *) return 0 ;; esac
 
 # A frontmatter `status` on its own is not enough to call something a decision
 # record, and neither is a four-digit prefix. This hook runs on every Edit and
@@ -86,9 +155,9 @@ case "$file_path" in *.md) ;; *) exit 0 ;; esac
 #     message that read "This record is \"draft\": a decision that was taken".
 basename=$(basename "$file_path")
 case "$basename" in
-  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*) exit 0 ;;   # a date, not an id
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*) return 0 ;;   # a date, not an id
   [0-9][0-9][0-9][0-9]-*.md) ;;
-  *) exit 0 ;;
+  *) return 0 ;;
 esac
 
 # Read the status out of the frontmatter only — the block between the first
@@ -118,7 +187,7 @@ status=$(awk '
 ' "$file_path" 2>/dev/null)
 
 # No frontmatter status: not a decision record, or not one this plugin made.
-[ -n "$status" ] || exit 0
+[ -n "$status" ] || return 0
 
 # Deny only on a status MADR defines as settled. Anything else — `published`,
 # `done`, a template placeholder, a status this plugin has never heard of — is
@@ -126,7 +195,7 @@ status=$(awk '
 # in both cases the safe answer is to stay out of the way.
 case "$status" in
   accepted|rejected|deprecated|"superseded by "*) ;;
-  *) exit 0 ;;
+  *) return 0 ;;
 esac
 
 # --- work out what to tell the agent to run instead --------------------------
@@ -240,9 +309,14 @@ reason="Refused: ${shown_path} is a decision record and is no longer open for ed
 
 ${what}
 
-If this is instead a correction to a record that was never right — a typo, a
-broken link — that is a human's call to make outside this session. Say what you
-found and leave the file alone."
+This refusal is the rule, not an obstacle in front of it. The same change made
+through the shell — sed, a redirect, tee — reaches some records without passing
+here, and where it does that is a gap in this guard rather than a way around the
+decision. A record changed that way is destroyed just the same, and nobody is
+told.
+
+If this is instead a correction to a record that was never right, a typo or a
+broken link, stop and say so. That is a person's call, not this session's."
 
 python3 - "$reason" <<'PY'
 import json, sys
@@ -254,4 +328,19 @@ print(json.dumps({
     }
 }))
 PY
+# Deny printed: nothing else in this call matters.
+exit 0
+}
+
+# Split on newlines only, so a path containing spaces stays one candidate. Not a
+# pipe into `while read`: that runs in a subshell, where the `exit` inside
+# `examine` would end the subshell and let the script carry on past a refusal it
+# had already decided to make.
+IFS='
+'
+for candidate in $candidates; do
+  [ -n "$candidate" ] || continue
+  examine "$candidate"
+done
+
 exit 0

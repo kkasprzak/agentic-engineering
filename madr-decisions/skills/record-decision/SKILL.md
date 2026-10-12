@@ -4,8 +4,10 @@ description: >-
   Write down a decision as a MADR record, or record the one that supersedes it. Trigger on "write an
   ADR", "record this decision", "we should document this choice", "create a decision record", "this
   decision is out of date", "supersede ADR-NNNN", "that record no longer matches the code", and
-  whenever a choice was made for reasons that will not survive in anyone's head. Not for writing a
-  design doc, a spec, or an explanation of how something works.
+  whenever a choice was made for reasons that will not survive in anyone's head. Also for moving a
+  record along: "mark ADR-0007 as accepted", "we agreed it, accept the record", "deprecate 0003",
+  "reject that proposal", "who were the decision-makers on 0014". Not for writing a design doc, a
+  spec, or an explanation of how something works.
 allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/new-decision.sh *)
 ---
 
@@ -35,11 +37,10 @@ format does not carry.
 - **A decision record is not documentation of the code.** It is dated, and it says what was decided
   *then*. When the code moves on, the record does not become wrong — it becomes superseded.
   Rewriting its original sections to match today's code destroys the only copy of what was decided.
-  Editing such a record with `Edit` or `Write` is refused by this plugin, and the refusal names the
-  command to run instead. Treat it as this rule arriving at the moment it applies, not as an
-  obstacle to get around — **a shell edit is not the way around it.** `sed -i` and a redirect go
-  unseen, because the refusal cannot see inside a Bash command; that makes them the one route by
-  which you can still destroy a record by accident, not a sanctioned alternative.
+  Editing such a record is refused by this plugin, and the refusal names the command to run instead.
+  **The shell is refused too** — `sed -i`, a redirect, `tee` — so treat the refusal as this rule
+  arriving at the moment it applies rather than as an obstacle with a way round it. A path the shell
+  assembles at run time does slip past, and that is a gap in the guard, not permission.
 - **The tell is in the commit message.** "The record no longer describes something that does not
   exist" means the author has mistaken a dated record for documentation to keep in sync. There is
   nothing to sync; there is a new record to write.
@@ -165,10 +166,11 @@ first.** Propose the command when the person you are working with has said the d
 not run it because the record looks finished to you. An agent that accepts its own record has locked
 everyone else out of a conclusion nobody confirmed.
 
-**And do not set the status line yourself.** The prompt covers this script, not the file: a
-`proposed` record is editable by design, so `Edit` on its status line is not blocked by anything,
-and neither is `sed -i`. Those are the ways to turn the lock on without anybody agreeing to it, and
-the only thing standing in front of them is this paragraph.
+**And do not set the status line yourself.** The prompt covers this script, not the file. A
+`proposed` record is editable by design — that is how a skeleton gets filled in — so nothing stops
+you changing its status with `Edit` or with `sed`. Doing it turns the lock on without anybody
+agreeing to the decision, and leaves a record that says it was accepted by somebody who never saw
+it.
 
 **Say when a record is waiting.** Finish by naming it and stating that it stays `proposed` until
 somebody accepts it. Nothing raises it on its own, and a draft nobody promotes is a draft the next

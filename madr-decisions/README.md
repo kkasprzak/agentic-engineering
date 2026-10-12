@@ -65,10 +65,20 @@ that fires on somebody's blog post does not merely annoy — the refusal prints 
 and an agent that follows it rewrites that post's frontmatter. Records under another convention —
 `ADR-0001-`, `001-`, a `## Status` section rather than frontmatter — are not protected at all.
 
-The hole in that: a file written through the shell. The harness fires `PreToolUse` for the Bash tool
-as a whole and not for a redirection inside it, so `sed -i` goes around the guard. Catching nine
-spellings of that and missing the tenth would read as cover without being it, so the guard does not
-try.
+**Both routes to a record are covered.** `Edit` and `Write` name their target, so those are simple.
+A `Bash` call carries only a command string, and whether that string writes a given file is not
+decidable in general — so the shell side looks for a path shaped like a record and acts only when
+the command also looks like a write: a redirect, an in-place `sed` or `perl`, `tee`, `cp`, `mv`, a
+`python` open for writing. Reading a record is never blocked.
+
+This was argued the other way at first: that catching nine spellings and missing the tenth reads as
+cover without being it. Then a live Claude Code session was asked to accept a record and reached for
+`sed -i` on its first try, with a literal path, and nothing stopped it. The tenth spelling is
+exotic; the first is what actually happens.
+
+What still gets through is a path the shell assembles at run time —
+`F=docs/adr/0014-x.md; sed -i ... $F` has no record in the command text, and the hook does not run
+shells. It is in the known gaps.
 
 **Refuses to let reasons be reconstructed.** You can write a convincing rationale for almost any
 choice, and nobody reading it next year can tell the difference between one that was sourced and one
@@ -171,7 +181,10 @@ filename check does not recognise.
 - **Nothing validates a record's contents after it is written.** Certainty about the *shape* comes
   from generating the skeleton, and the guard hook protects a record once it is settled — but
   nothing reads a filled-in record and judges whether what it says is any good. Nothing could.
-- **A record written entirely through the shell bypasses both.** The generator is not involved and
-  the guard never fires, since `PreToolUse` does not see inside a Bash command.
+- **A shell command that builds its path at run time gets past the guard.** The hook reads the
+  command text, so `sed -i ... docs/adr/0014-x.md` is refused but
+  `F=docs/adr/0014-x.md; sed -i ... $F` is not. It does not run shells and cannot resolve variables.
+- **A record written entirely through the shell still bypasses the generator**, which is not
+  involved at creation unless somebody runs it.
 - **A new record does not say what it supersedes.** The old record gains `superseded by <id>`; the
   new one carries no pointer back. Following the chain forwards works, backwards does not.
