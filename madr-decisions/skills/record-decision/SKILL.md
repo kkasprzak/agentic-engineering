@@ -4,8 +4,10 @@ description: >-
   Write down a decision as a MADR record, or record the one that supersedes it. Trigger on "write an
   ADR", "record this decision", "we should document this choice", "create a decision record", "this
   decision is out of date", "supersede ADR-NNNN", "that record no longer matches the code", and
-  whenever a choice was made for reasons that will not survive in anyone's head. Not for writing a
-  design doc, a spec, or an explanation of how something works.
+  whenever a choice was made for reasons that will not survive in anyone's head. Also for moving a
+  record along: "mark ADR-0007 as accepted", "we agreed it, accept the record", "deprecate 0003",
+  "reject that proposal", "who were the decision-makers on 0014". Not for writing a design doc, a
+  spec, or an explanation of how something works.
 allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/new-decision.sh *)
 ---
 
@@ -35,11 +37,11 @@ format does not carry.
 - **A decision record is not documentation of the code.** It is dated, and it says what was decided
   *then*. When the code moves on, the record does not become wrong — it becomes superseded.
   Rewriting its original sections to match today's code destroys the only copy of what was decided.
-  Editing such a record with `Edit` or `Write` is refused by this plugin, and the refusal names the
-  command to run instead. Treat it as this rule arriving at the moment it applies, not as an
-  obstacle to get around — **a shell edit is not the way around it.** `sed -i` and a redirect go
-  unseen, because the refusal cannot see inside a Bash command; that makes them the one route by
-  which you can still destroy a record by accident, not a sanctioned alternative.
+  Editing such a record is refused by this plugin, and the refusal names the command to run instead.
+  **The shell is refused too** when the record is the thing being written: `sed -i`, a redirect onto
+  it, `tee`, a `cp` or `mv` landing on it. Treat the refusal as this rule arriving at the moment it
+  applies, not as an obstacle with a way round it. Reading the record is never blocked. A path the
+  shell assembles at run time does slip past, and that is a gap in the guard, not permission.
 - **The tell is in the commit message.** "The record no longer describes something that does not
   exist" means the author has mistaken a dated record for documentation to keep in sync. There is
   nothing to sync; there is a new record to write.
@@ -128,24 +130,59 @@ Then open the file it named and fill it in. If `Considered Options` has one entr
 decision to record; write it down somewhere cheaper.
 
 **`decision-makers`, `consulted` and `informed` are optional.** Leave them empty unless you actually
-know who they were — a name you inferred is the same failure as a reason you invented.
+know who they were — a name you inferred is the same failure as a reason you invented. They are
+often unknown while the record is being written and obvious by the time it is accepted, which is
+why `set-status.sh` can fill them in later.
 
 **If you find a record that is still all placeholders**, it was generated and abandoned. Fill it or
 delete it; do not create a second one beside it.
 
 ## Status
 
-A freshly written record stays at `proposed`. **Promoting it to `accepted` is a human decision** and
-is not part of writing it — do not set it yourself.
+A freshly written record stays at `proposed`, and it stays editable while it is one — that is how
+the skeleton gets filled in. Accepting it is what makes it history and puts it beyond an agent's
+reach.
 
-**Say that it is waiting, though.** Finish by naming the record and stating that it stays `proposed`
-until somebody accepts it. Nothing else will raise it: no command sets that status and nothing
-prompts for it, so a record nobody promotes sits as a draft indefinitely — and a draft is editable,
-which means the next agent to come past can rewrite what it says. One sentence in your report is the
-only thing standing between a decision and that.
+```bash
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 accepted --decision-makers "Ana, Bo"
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 rejected
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 deprecated
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh chat/0003 accepted              # narrowed
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh --root docs/decisions 0014 accepted
+```
 
-The rest of the lifecycle is `rejected` and `deprecated` for the cases that never land or stop
-mattering, and `superseded by <id>`, which the script writes for you.
+It takes `--root` for the same reason the generator does, and defaults the same way, so in a
+repository whose records are not under `docs/adr/` every call needs it. Run it from the repository
+root.
+
+Three moves, and nothing else: `proposed → accepted`, `proposed → rejected`, `accepted →
+deprecated`. A record is never reopened, and `superseded by <id>` is not a status you set — that is
+`--supersedes`, which writes the replacement and flips this one together.
+
+**The three people fields can only be set while the record is still a draft, or in the same call
+that accepts it.** Afterwards they are history like the rest of it.
+
+**This script is absent from `allowed-tools` on purpose, so running it normally asks the user
+first.** Propose the command when the person you are working with has said the decision is made; do
+not run it because the record looks finished to you. An agent that accepts its own record has locked
+everyone else out of a conclusion nobody confirmed.
+
+**And do not set the status line yourself.** The prompt covers this script, not the file. A
+`proposed` record is editable by design — that is how a skeleton gets filled in — so nothing stops
+you changing its status with `Edit` or with `sed`. Doing it turns the lock on without anybody
+agreeing to the decision, and leaves a record that says it was accepted by somebody who never saw
+it.
+
+The prompt is also not forever: a user who answers "do not ask again", or whose settings allow
+`Bash` broadly, stops being asked. So treat the asking as a courtesy the harness happens to provide,
+and the rule above as the thing that actually holds.
+
+**Say when a record is waiting.** Finish by naming it and stating that it stays `proposed` until
+somebody accepts it. Nothing raises it on its own, and a draft nobody promotes is a draft the next
+agent may rewrite.
+
+MADR itself defines none of this: its template calls every frontmatter field optional and ends its
+status list with an ellipsis. The three moves are this plugin's rule, chosen to catch mistakes.
 
 `RFC` is not one of these. An RFC is a different kind of document — speculative, pre-decision, open
 for comment — and a record parked in that state is usually a decision that was made long ago and
