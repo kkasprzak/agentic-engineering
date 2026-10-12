@@ -28,9 +28,10 @@ number, the path and the filename, and writes the frontmatter with MADR's five k
 **Supersedes by writing, not editing.** `--supersedes` creates the new record and changes exactly one
 line of the old one: its status. Everything else in that file is history and is left byte-for-byte as
 it was. This is the behaviour the plugin exists for, and it is the assertion its tests are built
-around — `madr-decisions/tests/test-new-decision.sh`, which exits non-zero when anything fails. It
-needs `perl` for its timeout and `python3` for the guard's suite; where either is missing the cases
-that depend on it say so and are skipped rather than reported as passes.
+around — `madr-decisions/tests/`, three suites covering the generator, the lifecycle script and the
+guard hook, each exiting non-zero when anything fails. They need `perl` for their timeouts and
+`python3` for the guard's suite; where either is missing, the cases that depend on it say so and are
+skipped rather than reported as passes.
 
 **Moves a record along its lifecycle, and asks a person before it does.** `set-status.sh` makes
 three moves — `proposed → accepted`, `proposed → rejected`, `accepted → deprecated` — and fills in
@@ -38,10 +39,15 @@ three moves — `proposed → accepted`, `proposed → rejected`, `accepted → 
 written and obvious once it is agreed. It changes the one line it was asked to and leaves `date`
 alone.
 
-Unlike the generator, **this script is not in the skill's `allowed-tools`**, so every run stops for
-the user's approval. Accepting a record is what arms the guard below; if an agent could do it
-unprompted it could lock its own work against everyone else. The approval prompt is the human
-decision, enforced by the harness rather than requested in prose.
+Unlike the generator, **this script is not in the skill's `allowed-tools`**, so running it normally
+stops for the user's approval. Accepting a record is what arms the guard below; if an agent could do
+it unprompted it could lock its own work against everyone else.
+
+That covers the script, and only the script. Two things it does not cover, both named in the skill
+so the agent reads them where they apply: a user who answers "do not ask again", or who allows
+`Bash` broadly, stops being asked after the first time. And a `proposed` record is editable by
+design, which is how a skeleton gets filled in, so `Edit` on its status line is not blocked by
+anything either. The prompt is a real gate on one path, not a guarantee across all of them.
 
 **Refuses the edit that caused all this, at the moment it is attempted.** Generating a good record
 does nothing about an agent opening an accepted one six months later and bringing it up to date, and
@@ -151,9 +157,13 @@ filename check does not recognise.
 
 - **A rejected replacement strands the record it superseded.** `--supersedes` flips the old record
   as soon as the new one is written, while the new one is still only `proposed`. If a human then
-  rejects it, the old decision — which still holds — reads `superseded by <a rejected proposal>`,
-  and the generator refuses to supersede it again because its chain already points somewhere. Fix it
-  by hand: set the old record back to `accepted` and mark the rejected one as what it is.
+  rejects it, the old decision, which still holds, reads `superseded by <a rejected proposal>`, and
+  the generator refuses to supersede it again because its chain already points somewhere.
+
+  **Nothing in the plugin undoes this.** `set-status.sh` refuses every move out of `superseded by`,
+  and the guard refuses the `Edit`, so "fix it by hand" means a shell edit, which is the one route
+  this plugin otherwise tells you not to take. Narrow transitions cannot reopen a record by
+  definition; closing this needs a decision about reversal that has not been made yet.
 
 - **Scope containment is not expressible.** If a scope logically contains another, the script cannot
   tell from the paths and will refuse the supersession. Write the new record at system scope.

@@ -85,6 +85,28 @@ case "$root" in
   ..|../*|*/..|*/../*) echo "refusing: --root must not climb out of the repository, got '$root'" >&2; exit 1 ;;
 esac
 
+# A field value becomes one line of YAML frontmatter. A newline in it would add
+# a line of its own, and anything that reads as a key there silently overrides
+# the real one: `--informed 'x
+# date: 1999-01-01'` moves the record's date. Refuse rather than quote, because
+# a quoted multi-line value is not something this format needs.
+# A literal newline, assigned this way on purpose: `$(printf '\n')` is the
+# obvious spelling and it is empty, because command substitution strips trailing
+# newlines. The pattern then matches every value and refuses all of them.
+newline='
+'
+check_value() {
+  case "$2" in
+    *"$newline"*)
+      echo "refusing: $1 must be a single line" >&2
+      exit 1 ;;
+  esac
+}
+[ "$set_makers"    -eq 1 ] && check_value --decision-makers "$makers"
+[ "$set_consulted" -eq 1 ] && check_value --consulted       "$consulted"
+[ "$set_informed"  -eq 1 ] && check_value --informed        "$informed"
+true
+
 # `0014`, or `chat/0014` for a narrowed record. Nothing else: no paths, no `..`.
 case "$id" in
   [0-9][0-9][0-9][0-9]) dir="$root"; num="$id" ;;
@@ -129,14 +151,42 @@ read_key() {
         sub(/^[a-z-]+:[[:space:]]*/, "", line)
         sub(/[[:space:]]+$/, "", line)
         gsub(/^["'"'"']|["'"'"']$/, "", line)
+        # A second trim AFTER the quotes come off. `status: "accepted "` has its
+        # whitespace inside the quotes, so one trim leaves `accepted ` and the
+        # status stops matching anything. Both siblings do this; without it, a
+        # record the guard locks and the generator will supersede is one this
+        # script calls "not a decision record".
+        sub(/[[:space:]]+$/, "", line)
         print line
         exit
     }
   ' "$2"
 }
 
+if [ ! -r "$file" ]; then
+  echo "refusing: cannot read $file" >&2
+  exit 2
+fi
+
 if ! head -1 "$file" | tr -d '\r' | grep -q '^---$'; then
   echo "refusing: $file has no frontmatter to update" >&2
+  exit 2
+fi
+
+# An unterminated frontmatter has no closing fence, so the rewrite below has
+# nowhere to append a key it was asked to add: it would drop the request and
+# still report success. Refuse instead. A tool that reports work it did not do
+# is the failure this plugin exists to stop, and it must not be the tool.
+if ! awk '
+  { line = $0
+    if (substr(line, length(line)) == "\r") line = substr(line, 1, length(line) - 1) }
+  NR == 1 && line == "---" { infm = 1; next }
+  infm && line == "---"    { found = 1; exit }
+  END { exit(found ? 0 : 1) }
+' "$file"; then
+  echo "refusing: $file has no closing --- for its frontmatter" >&2
+  echo "  Add it, or the record cannot be changed without guessing where the" >&2
+  echo "  frontmatter ends." >&2
   exit 2
 fi
 
@@ -156,6 +206,39 @@ case "$current" in
     } >&2
     exit 2 ;;
 esac
+
+# --- the command the refusals point at --------------------------------------
+#
+# For a narrowed record the identifier has to carry its scope. `--root <its own
+# directory> --supersedes <bare number>` runs, and writes `superseded by 0001`
+# where the convention says `chat/0001` — and read that way the bare number is a
+# system record about something else, so the chain points at the wrong file. The
+# guard hook learned this already; this script has to spell it the same way.
+gen="${0%/*}/new-decision.sh"
+if [ -n "${scope:-}" ]; then
+  supersede_hint="${gen} --root ${root} --scope ${scope} --supersedes ${scope}/${num} \"<new title>\""
+else
+  supersede_hint="${gen} --root ${root} --supersedes ${num} \"<new title>\""
+fi
+
+# --- only a draft takes field edits -----------------------------------------
+#
+# The transition check below runs only when a status was given, so without this
+# a fields-only call rewrote `decision-makers` on an accepted, rejected or
+# superseded record. That is a write into settled history, and one the guard
+# hook cannot see, because this script writes through awk rather than Edit.
+if [ -z "$new_status" ] && [ "$current" != "proposed" ]; then
+  {
+    echo "refusing: $id is \"${current}\", so its fields are history too."
+    echo
+    echo "  decision-makers, consulted and informed can be filled while a record"
+    echo "  is still a draft, or in the same call that accepts it:"
+    echo "    set-status.sh ${id} accepted --decision-makers \"...\""
+    echo "  Once it is settled the record does not change. If the people were"
+    echo "  wrong, that is a correction for a human to make outside this session."
+  } >&2
+  exit 2
+fi
 
 # --- is the move allowed ----------------------------------------------------
 
@@ -177,7 +260,7 @@ if [ -n "$new_status" ]; then
         superseded*)
           echo "  Superseding is not a status you set. Write the record that replaces"
           echo "  this one, and both ends are updated in a single step:"
-          echo "    new-decision.sh --root ${dir} --supersedes ${num} \"<new title>\""
+          echo "    ${supersede_hint}"
           echo ;;
       esac
 
@@ -208,10 +291,23 @@ fi
 
 tmp="$file.tmp.$$"
 
-if ! awk -v want_status="$new_status" \
-         -v set_makers="$set_makers"       -v makers="$makers" \
-         -v set_consulted="$set_consulted" -v consulted="$consulted" \
-         -v set_informed="$set_informed"   -v informed="$informed" '
+# The values go through the environment, NOT through `awk -v`. Every awk applies
+# escape processing to a -v value, on macOS, mawk and BusyBox alike, so a real
+# name like `CORP\jsmith` arrives as `CORPjsmith` and `C:\temp\notes` turns into
+# a tab plus a second frontmatter line. ENVIRON[] hands the bytes over unchanged.
+# Run it plainly and capture the status afterwards. Inside `if ! cmd; then`,
+# `$?` is the status of the negation and always 0, so the block-list exit code
+# below would be invisible.
+MADR_MAKERS="$makers" MADR_CONSULTED="$consulted" MADR_INFORMED="$informed" \
+awk -v want_status="$new_status" \
+    -v set_makers="$set_makers" \
+    -v set_consulted="$set_consulted" \
+    -v set_informed="$set_informed" '
+  BEGIN {
+      makers    = ENVIRON["MADR_MAKERS"]
+      consulted = ENVIRON["MADR_CONSULTED"]
+      informed  = ENVIRON["MADR_INFORMED"]
+  }
   function emit(key, value,   out) {
       out = key ": " value
       print out cr
@@ -236,24 +332,44 @@ if ! awk -v want_status="$new_status" \
       if (want_status != "") { emit("status", "\"" want_status "\""); next }
       print; next
   }
+  # A key written as a YAML block list has its items on the lines below it.
+  # Replacing only the key line leaves those items orphaned under a scalar,
+  # which is invalid YAML, so the whole run is abandoned instead.
+  # Exit 3 rather than writing a message: "/dev/stderr" is not something every
+  # awk can open, and the shell knows which key was asked for anyway.
+  infm && pending_list && line ~ /^[[:space:]]+-[[:space:]]/ { exit 3 }
+  infm { pending_list = "" }
+
   infm && index(line, "decision-makers:") == 1 {
       seen_makers = 1
-      if (set_makers) { emit("decision-makers", makers); next }
+      if (set_makers) { pending_list = "decision-makers"; emit("decision-makers", makers); next }
       print; next
   }
   infm && index(line, "consulted:") == 1 {
       seen_consulted = 1
-      if (set_consulted) { emit("consulted", consulted); next }
+      if (set_consulted) { pending_list = "consulted"; emit("consulted", consulted); next }
       print; next
   }
   infm && index(line, "informed:") == 1 {
       seen_informed = 1
-      if (set_informed) { emit("informed", informed); next }
+      if (set_informed) { pending_list = "informed"; emit("informed", informed); next }
       print; next
   }
   { print }
-' "$file" > "$tmp"; then
+' "$file" > "$tmp"
+rc=$?
+
+if [ "$rc" -ne 0 ]; then
   rm -f "$tmp"
+  if [ "$rc" -eq 3 ]; then
+    {
+      echo "refusing: $file writes one of those keys as a YAML block list."
+      echo "  Replacing just the key line would leave its items orphaned under a"
+      echo "  plain value, which is not valid YAML. Edit that key by hand, or"
+      echo "  rewrite it as a single line first."
+    } >&2
+    exit 2
+  fi
   echo "failed: could not rewrite $file; it is unchanged" >&2
   exit 1
 fi

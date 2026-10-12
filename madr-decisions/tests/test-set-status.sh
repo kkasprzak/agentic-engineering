@@ -34,6 +34,13 @@ changed_lines() {
 
 status_of() { awk 'NR==1&&/^---$/{i=1;next} i&&/^---$/{exit} i&&/^status:/{print;exit}' "$1"; }
 
+# Bash has no portable timeout and macOS ships no `timeout(1)`. Without this a
+# regression in argument handling hangs the suite forever instead of failing it,
+# and a missing perl has to read as a skip rather than a pass.
+have_perl=0
+command -v perl >/dev/null 2>&1 && have_perl=1
+run_limited() { perl -e 'alarm shift; exec @ARGV' "$@"; }
+
 echo "set-status.sh"
 
 # --- the moves a lifecycle needs --------------------------------------------
@@ -228,9 +235,218 @@ echo "set-status.sh"
 
 ( workdir
   "$NEW" "Trailing" >/dev/null 2>&1
-  "$SET" 0000 accepted --consulted >/dev/null 2>&1
-  check "a trailing --consulted is a usage error, not a hang" "$?" "1"
+  if [ "$have_perl" -ne 1 ]; then
+    printf '  skip a trailing --consulted is a usage error (no perl, cannot time out)\n'
+  else
+    run_limited 5 "$SET" 0000 accepted --consulted >/dev/null 2>&1
+    code=$?
+    case "$code" in
+      142) bad "a trailing --consulted is a usage error, not a hang" "it hung" ;;
+      1)   ok  "a trailing --consulted is a usage error, not a hang" ;;
+      *)   bad "a trailing --consulted is a usage error, not a hang" "unexpected exit $code" ;;
+    esac
+  fi
 )
+
+# --- the transition table is the rule; pin every edge of it ------------------
+#
+# A mutation run showed the suite stayed green when the table was widened with
+# `proposed->deprecated` or `accepted->rejected`, which are the two most likely
+# ways somebody loosens it. Refusals that were already covered are not enough:
+# what is allowed has to be pinned from both sides.
+
+( workdir
+  "$NEW" "Skipping" >/dev/null 2>&1
+  "$SET" 0000 deprecated >/dev/null 2>&1
+  check "a draft cannot skip straight to deprecated" "$?" "2"
+)
+
+( workdir
+  "$NEW" "Reversing" >/dev/null 2>&1
+  "$SET" 0000 accepted >/dev/null 2>&1
+  "$SET" 0000 rejected >/dev/null 2>&1
+  check "an accepted record cannot be rejected afterwards" "$?" "2"
+)
+
+( workdir
+  "$NEW" "Sideways" >/dev/null 2>&1
+  "$SET" 0000 rejected   >/dev/null 2>&1
+  "$SET" 0000 deprecated >/dev/null 2>&1
+  check "a rejected record cannot be deprecated" "$?" "2"
+)
+
+# --- fields follow the same lifecycle ----------------------------------------
+
+( workdir
+  "$NEW" "Settled Fields" >/dev/null 2>&1
+  "$SET" 0000 accepted >/dev/null 2>&1
+  before=$(grep '^decision-makers:' docs/adr/0000-settled-fields.md)
+  "$SET" 0000 --decision-makers "Somebody Else" >/dev/null 2>&1
+  check "fields cannot be rewritten on an accepted record" "$?" "2"
+  check "and the record was left alone" \
+        "$(grep '^decision-makers:' docs/adr/0000-settled-fields.md)" "$before"
+)
+
+( workdir
+  "$NEW" "Together" >/dev/null 2>&1
+  "$SET" 0000 accepted --decision-makers "Ana" >/dev/null 2>&1
+  check "but they can be set in the call that accepts" "$?" "0"
+  check "and they landed" "$(grep '^decision-makers:' docs/adr/0000-together.md)" "decision-makers: Ana"
+)
+
+( workdir
+  mkdir -p docs/notes
+  printf -- '---\nstatus: published\n---\n' > docs/notes/0009-post.md
+  "$SET" --root docs/notes 0009 --consulted "Nobody" >/dev/null 2>&1
+  check "a non-MADR status blocks a fields-only call too" "$?" "2"
+
+  # The outcome alone does not pin this: with the "is it a record" check removed
+  # the transition table and the lifecycle check still refuse, just with a
+  # message about a move nobody asked about. The message is what carries the
+  # reason, so the message is what gets asserted.
+  out=$("$SET" --root docs/notes 0009 accepted 2>&1)
+  case "$out" in
+    *"does not look like a decision record"*) ok "and the refusal says it is not a record at all" ;;
+    *) bad "and the refusal says it is not a record at all" "it talked about the transition instead" ;;
+  esac
+)
+
+# --- values reach the file unchanged -----------------------------------------
+#
+# These went through `awk -v`, which applies escape processing on every awk:
+# `CORP\jsmith` arrived as `CORPjsmith`, and `C:\temp\notes` became a tab plus
+# an extra frontmatter line, with exit 0.
+
+( workdir
+  "$NEW" "Backslash" >/dev/null 2>&1
+  "$SET" 0000 accepted --consulted 'CORP\jsmith' >/dev/null 2>&1
+  check "a backslash survives" "$(grep '^consulted:' docs/adr/0000-backslash.md)" 'consulted: CORP\jsmith'
+)
+
+( workdir
+  "$NEW" "Windows Path" >/dev/null 2>&1
+  "$SET" 0000 accepted --informed 'C:\temp\notes' >/dev/null 2>&1
+  check "so does a Windows path" "$(grep '^informed:' docs/adr/0000-windows-path.md)" 'informed: C:\temp\notes'
+  check "and it did not grow a line" \
+        "$(awk 'NR==1&&/^---$/{i=1;next} i&&/^---$/{exit} i{n++} END{print n+0}' docs/adr/0000-windows-path.md)" "5"
+)
+
+( workdir
+  "$NEW" "Multiline" >/dev/null 2>&1
+  "$SET" 0000 accepted --informed 'a
+date: 1999-01-01' >/dev/null 2>&1
+  check "a real newline in a value is refused" "$?" "1"
+  check "so no date was injected" \
+        "$(grep -c '^date: 1999-01-01' docs/adr/0000-multiline.md | tr -d ' ')" "0"
+)
+
+# --- frontmatter shapes that cannot be rewritten safely ----------------------
+
+( workdir
+  mkdir -p docs/adr
+  printf -- '---\nstatus: "proposed"\nconsulted:\n  - Ana\n  - Bo\n---\n\n# T\n' > docs/adr/0000-list.md
+  cp docs/adr/0000-list.md /tmp/list-before.$$
+  "$SET" 0000 --consulted "DBA guild" >/dev/null 2>&1
+  check "a YAML block list is refused, not flattened" "$?" "2"
+  check "and the list is untouched" "$(changed_lines /tmp/list-before.$$ docs/adr/0000-list.md)" "0"
+  rm -f /tmp/list-before.$$
+)
+
+( workdir
+  mkdir -p docs/adr
+  printf -- '---\nstatus: "proposed"\ndate: 2026-01-01\n' > docs/adr/0000-unterminated.md
+  "$SET" 0000 accepted --consulted Security >/dev/null 2>&1
+  check "frontmatter with no closing fence is refused" "$?" "2"
+)
+
+( workdir
+  mkdir -p docs/adr
+  printf -- 'Not frontmatter\n---\nstatus: "proposed"\n---\n' > docs/adr/0000-late-fence.md
+  "$SET" 0000 accepted >/dev/null 2>&1
+  check "a fence that is not on line one is refused" "$?" "2"
+)
+
+# --- read the status the way the siblings read it ----------------------------
+#
+# `status: "accepted "` has its whitespace inside the quotes. One trim leaves
+# `accepted ` and the record stops being recognised, so a file the guard locks
+# and the generator will supersede became one this script called "not a record".
+
+( workdir
+  mkdir -p docs/adr
+  printf -- '---\nstatus: "accepted "\ndate: 2026-01-01\n---\n\n# T\n' > docs/adr/0000-spaced.md
+  "$SET" 0000 deprecated >/dev/null 2>&1
+  check "a status padded inside its quotes is still read" "$?" "0"
+)
+
+( workdir
+  mkdir -p docs/adr
+  # No status in the frontmatter, one in the body. The body is prose.
+  printf -- '---\ndate: 2026-01-01\n---\n\n```yaml\nstatus: "accepted"\n```\n' > docs/adr/0000-body.md
+  "$SET" 0000 accepted >/dev/null 2>&1
+  check "a status in the body is not the record's status" "$?" "2"
+)
+
+( workdir
+  "$NEW" "Fenced Body" >/dev/null 2>&1
+  f=docs/adr/0000-fenced-body.md
+  # A DIFFERENT value from the one being set, so rewriting the body shows up.
+  printf -- '\n```yaml\nstatus: "rejected"\n```\n' >> "$f"
+  "$SET" 0000 accepted >/dev/null 2>&1
+  check "the body's own status line is not rewritten" \
+        "$(grep -c 'status: "rejected"' "$f" | tr -d ' ')" "1"
+)
+
+# --- the refusal points at a command that is right ---------------------------
+
+( workdir
+  "$NEW" --scope chat "Narrow" >/dev/null 2>&1
+  "$SET" chat/0000 accepted >/dev/null 2>&1
+  out=$("$SET" chat/0000 "superseded by 0001" 2>&1)
+  case "$out" in
+    *"--scope chat"*) ok "a narrowed refusal names the scope" ;;
+    *) bad "a narrowed refusal names the scope" "it did not" ;;
+  esac
+  case "$out" in
+    *"--supersedes chat/0000"*) ok "and a scoped id, not a bare number" ;;
+    *) bad "and a scoped id, not a bare number" "it suggested the bare number" ;;
+  esac
+)
+
+# --- failures are failures ---------------------------------------------------
+
+( workdir
+  "$NEW" "Unwritable" >/dev/null 2>&1
+  chmod 555 docs/adr
+  if : 2>/dev/null > docs/adr/.probe; then
+    rm -f docs/adr/.probe; chmod 755 docs/adr
+    printf '  skip unwritable-directory case (writes succeed here — running as root?)\n'
+  else
+    "$SET" 0000 accepted >/dev/null 2>&1
+    code=$?
+    chmod 755 docs/adr
+    check "an unwritable directory is an error" "$code" "1"
+    check "and the record did not move" \
+          "$(status_of docs/adr/0000-unwritable.md)" 'status: "proposed"'
+  fi
+)
+
+( workdir
+  mkdir -p docs/adr
+  printf -- '---\nstatus: "proposed"\n---\n' > docs/adr/0000-one.md
+  printf -- '---\nstatus: "proposed"\n---\n' > docs/adr/0000-two.md
+  "$SET" 0000 accepted >/dev/null 2>&1
+  check "an id matching two files is refused" "$?" "2"
+)
+
+# NOT COVERED, and said so rather than implied: the branch where the rewrite
+# succeeds and `mv` then fails. The unwritable-directory case above never
+# reaches it, because writing the temp file fails first. Making only the rename
+# fail needs a writable directory holding an unrenameable target, which is not
+# portable, and the alternative is a seam in production code that exists for a
+# test. A mutation removing that `exit 1` passes this suite. The branch is three
+# lines and is reviewed by reading. Same gap, same reason, as the rollback
+# branch in test-new-decision.sh.
 
 pass=$(grep -c '^ok$'   "$RESULTS" || true)
 fail=$(grep -c '^fail$' "$RESULTS" || true)

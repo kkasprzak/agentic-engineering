@@ -145,17 +145,30 @@ reach.
 ${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 accepted --decision-makers "Ana, Bo"
 ${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 rejected
 ${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 deprecated
-${CLAUDE_SKILL_DIR}/scripts/set-status.sh 0014 --consulted "DBA guild"   # fields only
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh chat/0003 accepted              # narrowed
+${CLAUDE_SKILL_DIR}/scripts/set-status.sh --root docs/decisions 0014 accepted
 ```
+
+It takes `--root` for the same reason the generator does, and defaults the same way, so in a
+repository whose records are not under `docs/adr/` every call needs it. Run it from the repository
+root.
 
 Three moves, and nothing else: `proposed → accepted`, `proposed → rejected`, `accepted →
 deprecated`. A record is never reopened, and `superseded by <id>` is not a status you set — that is
 `--supersedes`, which writes the replacement and flips this one together.
 
-**This script is deliberately absent from `allowed-tools`, so running it asks the user first.** That
-prompt is the decision. Propose the command when the person you are working with has said the
-decision is made; do not run it because the record looks finished to you. An agent that accepts its
-own record has locked everyone else out of a conclusion nobody confirmed.
+**The three people fields can only be set while the record is still a draft, or in the same call
+that accepts it.** Afterwards they are history like the rest of it.
+
+**This script is absent from `allowed-tools` on purpose, so running it normally asks the user
+first.** Propose the command when the person you are working with has said the decision is made; do
+not run it because the record looks finished to you. An agent that accepts its own record has locked
+everyone else out of a conclusion nobody confirmed.
+
+**And do not set the status line yourself.** The prompt covers this script, not the file: a
+`proposed` record is editable by design, so `Edit` on its status line is not blocked by anything,
+and neither is `sed -i`. Those are the ways to turn the lock on without anybody agreeing to it, and
+the only thing standing in front of them is this paragraph.
 
 **Say when a record is waiting.** Finish by naming it and stating that it stays `proposed` until
 somebody accepts it. Nothing raises it on its own, and a draft nobody promotes is a draft the next
