@@ -64,107 +64,26 @@ input=$(cat)
 # anyway, so it could not trust the filter — and incomplete, with no `ex`, `ed`,
 # `install`, `gsed` or an absolute path to any of them. One matcher and one
 # decision beat eleven lines that have to be kept in step with nothing.
-case "$input" in
-  *[0-9][0-9][0-9][0-9]-*.md*) ;;
-  *) exit 0 ;;
-esac
+#
+# `grep`, not a `case` glob. bash 3.2 — still the default on macOS — backtracks
+# on every `NNNN-` partial match, so a Write of a log full of timestamps took
+# 5.3 seconds for 500 KB and nearly a minute for 2 MB. The hook runs on every
+# Write and every Bash call, so that is the session stalling, not a slow check.
+# bash 5 does not have the problem; grep does not have it anywhere.
+printf '%s' "$input" | grep -qE '[0-9]{4}-[^"]*\.md' || exit 0
 
-# python3 rather than jq: a file path can contain spaces, quotes and backslashes,
-# and grepping JSON for it works until the day it does not. python3 is already
-# what this repository's other plugin scripts parse JSON with.
-# For Edit and Write the target is one field. For Bash there is no target, only
-# a command string, so the paths have to be picked out of it. That path is
-# narrower on purpose and the README says how far it reaches: a literal record
-# path in the command is caught, a path assembled from a variable is not.
-candidates=$(printf '%s' "$input" | python3 -c '
-import json, re, sys
-try:
-    d = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-name = d.get("tool_name", "")
-ti = d.get("tool_input") or {}
+# One interpreter launch, in its own file. The path-picking needs apostrophes
+# that a `python3 -c '...'` string cannot hold, and the hook used to start
+# python three times per call: once for the paths, once for an unused tool name,
+# once per candidate for the cwd.
+#
+# First line of the output is the session's working directory, the rest are
+# candidate paths.
+here=$(cd "$(dirname "$0")" && pwd)
+parsed=$(printf '%s' "$input" | python3 "$here/record-paths.py" 2>/dev/null)
 
-if name == "Bash":
-    cmd = ti.get("command", "") or ""
-
-    # The question is never "does this command write something" but "is THIS
-    # record the thing it writes". Asking the first one refused
-    # `grep status 0014-x.md 2>/dev/null`, because `2>` contains a redirect and
-    # the record was mentioned somewhere — a guard that blocks reading is a
-    # guard that gets switched off, and then it protects nothing at all.
-    #
-    # So each candidate path is judged by what sits in front of that particular
-    # occurrence.
-    IN_PLACE = re.compile(
-        r"""(?:^|[|;&]|\s)                 # start of a simple command
-            (?:[\w./-]*/)?                 # optional directory, so /usr/bin/sed
-            (?:g?sed|perl|ruby|gawk|awk)\b # the editors that rewrite in place
-            (?![^|;&]*\b(?:-e\s|--expression))?  # (-e alone is not in-place)
-            [^|;&]*?
-            (?:\s-{1,2}i(?:n-place)?\b     # -i, --in-place
-              |\s-[a-z]*i[a-z]*\b          # bundled, as in perl -pi -e
-              |-i[ =]inplace\b)            # gawk -i inplace
-        """, re.X)
-    TEE = re.compile(r"(?:^|[|;&]|\s)(?:[\w./-]*/)?tee\b")
-    COPIER = re.compile(r"(?:^|[|;&]|\s)(?:[\w./-]*/)?(?:cp|mv|install|rsync)\b")
-    LINE_ED = re.compile(r"(?:^|[|;&]|\s)(?:[\w./-]*/)?e[dx]\b")
-    PY_WRITE = re.compile(r"""open\([^)]*["'\''][wa]""")
-
-    def writes(path, at):
-        """Is `path`, appearing at offset `at`, the target of a write?"""
-        before = cmd[:at]
-        # A redirect immediately before it. `2>` and `1>` and `&>` send a
-        # stream somewhere else and are not this record being written.
-        if re.search(r"(?<![0-9&])>>?\s*$", before):
-            return True
-        # Everything after the last shell separator is the simple command this
-        # path belongs to; a writer in a previous command says nothing here.
-        simple = re.split(r"[|;&]|\&\&", before)[-1]
-        if IN_PLACE.search(simple) or TEE.search(simple) or LINE_ED.search(simple):
-            return True
-        if COPIER.search(simple):
-            # Only the destination is written, and that is the last operand.
-            rest = cmd[at + len(path):]
-            if not re.search(r"\S", rest.split("|")[0].split(";")[0]):
-                return True
-        # A python one-liner opening a file for writing. Picking out which
-        # argument is the path means parsing python, so the test is coarser:
-        # the command opens something for writing and names this record.
-        if PY_WRITE.search(cmd):
-            return True
-        return False
-
-    # `cd docs/adr && sed -i ... 0014-x.md` leaves the filename relative to a
-    # directory the hook is not standing in. Collect what the command cd-ed to,
-    # composing them, so `cd docs && cd adr` resolves as well.
-    cds = [d.strip("\"'\'' ") for d in re.findall(r"\bcd\s+([^\s;&|]+)", cmd)]
-    prefixes = [""]
-    acc = ""
-    for d in cds:
-        acc = d if d.startswith("/") else (acc.rstrip("/") + "/" + d if acc else d)
-        prefixes.append(acc)
-
-    PATH_RE = re.compile(r"""[^\s"'\''<>|;&()]*\b[0-9]{4}-[^\s"'\''<>|;&()]*\.md""")
-    for m in PATH_RE.finditer(cmd):
-        if not writes(m.group(0), m.start()):
-            continue
-        print(m.group(0))
-        if "/" not in m.group(0):
-            for pre in prefixes:
-                if pre:
-                    print(pre.rstrip("/") + "/" + m.group(0))
-else:
-    p = ti.get("file_path", "")
-    if p:
-        print(p)
-' 2>/dev/null)
-
-tool_name=$(printf '%s' "$input" | python3 -c '
-import json, sys
-try:    print(json.load(sys.stdin).get("tool_name", ""))
-except Exception: pass
-' 2>/dev/null)
+cwd=$(printf '%s\n' "$parsed" | sed -n '1p')
+candidates=$(printf '%s\n' "$parsed" | sed '1d')
 
 # Anything we could not parse is not something to block on. A guard that fails
 # closed on malformed input would stop the session over its own bug.
@@ -248,13 +167,7 @@ abs_dir=$(dirname "$file_path")       # keep the absolute form: the filesystem
 record_dir="$abs_dir"                  # check below must not run against the
 record_id=$(basename "$file_path" | cut -c1-4)   # hook's own working directory
 
-# Paths relative to where the session is working read better than absolute ones
-# and are what the agent has to type.
-cwd=$(printf '%s' "$input" | python3 -c '
-import json, sys
-try:    print(json.load(sys.stdin).get("cwd", ""))
-except Exception: pass
-' 2>/dev/null)
+# `cwd` came out of the single parse above.
 shown_path="$file_path"
 case "$record_dir" in
   "$cwd"/*) record_dir="${record_dir#"$cwd"/}" ;;

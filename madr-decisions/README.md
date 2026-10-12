@@ -69,9 +69,17 @@ all.
 **Both routes to a record are covered.** `Edit` and `Write` name their target, so those are simple.
 A `Bash` call carries only a command string, and whether that string writes a given file cannot be
 decided in general. So the shell side asks a narrower question: is this record the **target** of a
-write in this command. A redirect straight onto it, an in-place `sed`, `gsed`, `perl` or `ed`, a
-`tee`, a `cp` or `mv` whose destination it is, a `python` open for writing. Reading it, grepping it,
-copying it somewhere else, or only naming it in a command which writes another file are all allowed.
+write in this command. A redirect onto it, whatever descriptor is attached, so `2> record` counts as
+much as `> record` does. An in-place `sed`, `gsed`, `perl`, `ruby` or `awk`, or an `ed` or `ex`, when
+that is the command being run and not a word inside an argument. A `tee`. A `cp`, `mv`, `install` or
+`rsync` whose destination it is. A `python` open for writing. Reading it, grepping it, copying it
+somewhere else, or only naming it in a command which writes another file are all allowed.
+
+Quoted parts of the command are blanked out before any of this is located. Without that step the
+semicolon inside `sed -i 's/a/b/;s/c/d/' record` reads as a command separator, the `sed` falls
+outside the command being examined, and the write goes through. That included
+`sed -i '/^status:/{s/proposed/accepted/;}' record`, which is the exact edit this plugin exists to
+refuse.
 
 The first version asked the wider question, and refused `grep status 0014-x.md 2>/dev/null`, because
 `2>` is a redirect and the record was mentioned. A guard which blocks reading is a guard somebody
@@ -187,12 +195,13 @@ filename check does not recognise.
 - **Nothing validates the contents of a record after it is written.** Certainty about the *shape*
   comes from generating the skeleton, and the guard hook protects a record once it is settled. But
   nothing reads a filled record and judges whether what it says is any good. Nothing could.
-- **A shell command which builds its path at run time gets past the guard.** The hook reads the
-  command text, so `sed -i ... docs/adr/0014-x.md` is refused, but
-  `F=docs/adr/0014-x.md; sed -i ... $F` is not. It does not run shells and cannot resolve variables.
-  The same holds for any writer the hook does not recognise: it knows redirects, `sed`, `gsed`,
-  `perl`, `ruby`, `awk`, `ed`, `ex`, `tee`, `cp`, `mv`, `install`, `rsync` and a `python` open for
-  writing, and nothing else.
+- **A shell command which hides the path from the hook gets past it.** The hook reads the command
+  text and does not run shells, so a path which only exists after expansion is invisible to it:
+  `sed -i ... $F`, `docs/adr/*.md`, `$PWD/docs/...`, `~/docs/...`, a path built in a loop, or one
+  handed over by `find -exec`. The same holds for any writer it does not know. It recognises
+  redirects, `sed`, `gsed`, `perl`, `ruby`, `awk`, `ed`, `ex`, `tee`, `cp`, `mv`, `install`, `rsync`
+  and a `python` open for writing, and nothing else. `rm` and `git checkout -- <record>` are not
+  writes in its sense and are not refused.
 - **A record written entirely through the shell still goes around the generator**, which is not
   involved at creation unless somebody runs it.
 - **A new record does not say what it supersedes.** The old record gets `superseded by <id>`, the new

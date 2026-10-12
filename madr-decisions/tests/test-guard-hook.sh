@@ -13,6 +13,17 @@ set -uo pipefail
 GUARD="$(cd "$(dirname "$0")/../hooks" && pwd)/guard-accepted-record.sh"
 [ -x "$GUARD" ] || { echo "not executable: $GUARD" >&2; exit 1; }
 
+# The guard cannot read its input without python3, and this suite cannot tell a
+# guard that abstained from one that allowed. The README claims the cases which
+# depend on an interpreter say so and skip; that was true of perl in the other
+# suites and false here.
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "  skip every case: python3 is missing, so the guard abstains by design"
+  echo
+  echo "0 passed, 0 failed (skipped)"
+  exit 0
+fi
+
 RESULTS="$(mktemp)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$RESULTS" "$WORK"' EXIT
@@ -294,6 +305,45 @@ bexpect "chained cd is composed" \
 # A writer in an earlier command says nothing about a later one.
 bexpect "a writer before the separator does not taint a later read" \
         "sed -i '' 's/x/y/' /tmp/other.txt; cat docs/adr/0050-settled.md" allow
+
+# A separator inside the editor's own expression is not a separator. Without
+# masking the quotes, the `;` here ended the simple command, the `sed` fell
+# outside it, and the write went through — including the status flip itself.
+bexpect "a semicolon inside the sed expression is not a separator" \
+        "sed -i '' 's/a/b/;s/c/d/' docs/adr/0050-settled.md" deny
+bexpect "the status flip itself is refused" \
+        "sed -i '' '/^status:/{s/proposed/accepted/;}' docs/adr/0050-settled.md" deny
+bexpect "an alternation inside the expression is not a pipe" \
+        "sed -i '' -E 's/(a|b)/c/' docs/adr/0050-settled.md" deny
+bexpect "bundled -Ei is an in-place flag" \
+        "sed -Ei '' 's/a/b/' docs/adr/0050-settled.md" deny
+
+# A redirect onto the record is a write whatever descriptor is attached. The
+# first version excluded `2>` by its number, which let `echo x 2> record`
+# truncate a settled record.
+bexpect "2> onto the record truncates it, so it is refused" \
+        "echo x 2> docs/adr/0050-settled.md" deny
+bexpect "1> onto the record is refused" \
+        "echo x 1> docs/adr/0050-settled.md" deny
+bexpect "but an input redirect is a read" \
+        "tee other.md < docs/adr/0050-settled.md" allow
+
+bexpect "a copier is still a copier with stderr redirected" \
+        "cp other.md docs/adr/0050-settled.md 2>/dev/null" deny
+bexpect "and when something follows the destination" \
+        "cp other.md docs/adr/0050-settled.md && git add -A" deny
+
+bexpect "a cd prefix applies to a path that has a directory too" \
+        "cd docs && sed -i '' 's/a/b/' adr/0050-settled.md" deny
+
+# Claude Code sends multi-line Bash commands routinely. A newline separates
+# commands, so a writer on one line says nothing about a read on the next.
+nl_cmd="sed -i '' 's/a/b/' other.md
+cat docs/adr/0050-settled.md"
+bexpect "a newline separates commands" "$nl_cmd" allow
+
+bexpect "an editor named in an argument is not the editor" \
+        "grep -n ex docs/adr/0050-settled.md" allow
 
 pass=$(grep -c '^ok$'   "$RESULTS" || true)
 fail=$(grep -c '^fail$' "$RESULTS" || true)
