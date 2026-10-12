@@ -31,11 +31,11 @@ their context is wiped. You start one, give it work, check what comes back, and 
 
 | component | what it does |
 |---|---|
-| `coordinate-workers` *(skill)* | The coordinator side. How to write a task brief which still makes sense to a session with no memory of the conversation. What to put in the message and what to leave in the tracker. How to verify a report instead of believing it. When parallel work really helps, and what to do when a worker goes silent. |
+| `coordinate-workers` *(skill)* | The coordinator side. How to write a task brief which still makes sense to a session with no memory of the conversation. What to put in the message and what to leave in the tracker. How to verify a report instead of believing it. When parallel work really helps, and what to do when a worker goes quiet. |
 | `split-work` *(skill)* | The step between a decided plan and a plan you can dispatch. It turns a settled approach into items ordered by dependency. Each item can be started by a session which never saw the discussion. Size comes from how much an agent must hold in its head, not from hours. Items are checked against work which already exists, and shown for approval before anything is created. It decides what the items are. `coordinate-workers` says how to write one, and a backlog plugin creates them. |
 | `spawn-worker` *(skill)* | The session mechanics. Start a worker in a cmux panel with a given role, clear its conversation between tasks but keep its name and address, and retire it. It refuses to drop a worktree which still holds uncommitted or unpushed work. |
 | `agent-crew:developer` *(role)* | Implements one task end to end and reports honestly. Full builds, not filtered ones. Counts read from the build summary, with the number from before. A fix comes with a test which would catch the bug. When the brief turns out to be wrong, it stops instead of guessing. |
-| `agent-crew:tester` *(role)* | Verifies someone else's work and reports what is true. Evidence for every claim, an explicit "inconclusive" instead of a false pass, and a judgement if the tests would fail before the fix. It reports findings, it does not fix them. |
+| `agent-crew:tester` *(role)* | Verifies someone else's work and reports what is true. Evidence for every claim, an explicit "inconclusive" instead of a false pass, and a judgement whether the tests would have failed before the fix. It reports findings, it does not fix them. |
 | `agent-crew:solution-architect` *(role)* | Works out how a change should be made, before anyone writes it. Reads the code as it really is. Verifies the facts which the plan stands on, instead of taking them from somebody. Challenges the task when the task is wrong. Splits the work so it can land in steps, not in one big lump. Gives a decision with reasons, not a menu of options. Does not implement. |
 
 The three roles are useful alone, with or without the session machinery. They are the worker side of
@@ -56,7 +56,7 @@ store. The crew stays the same.
 
 | component | what it does |
 |---|---|
-| `drive-backlog` *(skill)* | Binds the crew's abstract backlog to beads, and then says as little as possible. `bd` is built agent-first and ships its own agent context (`bd prime`), so the skill points there instead of copying it. It carries what that help does not: the `--graph` plan schema, the way this plan fails quietly, which database `bd` is going to write to, and where the crew's "a worker has gone silent" meets Beads claim leases. Ships `validate-graph-plan.sh`, so the quiet failure is an exit code and not a number nobody reads. |
+| `drive-backlog` *(skill)* | Binds the crew's abstract backlog to beads, and then says as little as possible. `bd` is built agent-first and ships its own agent context (`bd prime`), so the skill points there instead of copying it. It carries what that help does not: the `--graph` plan schema, the way this plan fails quietly, which database `bd` is going to write to, and where the crew's "a worker has gone quiet" meets Beads' claim leases. Ships `validate-graph-plan.sh`, so the quiet failure is an exit code and not a number nobody reads. |
 
 **A dry run which reports zero edges looks like success.** Dependencies written inside a node of a
 graph plan parse without any error and create nothing. The plan lands as a pile of items with no
@@ -88,7 +88,7 @@ the reviewer only a path.
 
 | component | what it does |
 |---|---|
-| `/peer-review:fresh-eyes` *(command)* | Picks the target if you did not name one (a document from the conversation, the uncommitted diff, or the branch diff against the default branch of the repository). It says which one it picked, and relays what comes back word for word, also a plain "nothing found". |
+| `/peer-review:fresh-eyes` *(command)* | Picks the target if you did not name one (a document from the conversation, the uncommitted diff, or the branch diff against the default branch of the repository). It says which one it picked, and relays what comes back word for word, also when the answer is a plain "nothing found". |
 | `peer-review:fresh-eyes-review` *(agent)* | Reads the artifact and reports blunders, oversights, missing things, logical problems and bugs. Read-only by construction: no edit tools, and the only shell it has is `git log`, `diff`, `show` and `status`. |
 
 **The reviewer gets no context on purpose.** No summary of the design, no reason why it was built
@@ -101,7 +101,7 @@ the person who makes it.
 
 The second reviewer is the pipeline. Nobody has to ask it for an opinion, it has one the moment you
 push. The cost is that somebody must remember to read it, few minutes after they stopped thinking
-about the change. This plugin watches for the push and reacts alone.
+about the change. This plugin watches for the push and reacts without being asked.
 
 | component | what it does |
 |---|---|
@@ -136,7 +136,7 @@ mention. It is useful alone, but it exists to complete `agent-crew`.
 ## Requirements
 
 `spawn-worker` drives [cmux](https://www.cmux.dev/), a terminal based on Ghostty with vertical tabs
-and notifications for AI coding agents. Without it the plugin does nothing. The script checks and
+and notifications for AI coding agents. Without it this skill does nothing. The script checks and
 exits instead of failing in the middle.
 
 ```bash
@@ -155,7 +155,7 @@ working without changes, and this is the point of keeping the binding in one pla
 ## What it does not do, on purpose
 
 This tooling starts autonomous Claude Code sessions which hold a full shell. Some things which it
-refuses to do are the most important part of it:
+refuses to do are the most important parts of it:
 
 - **It will not answer a trust-this-folder prompt for you.** When you spawn into a directory which
   the CLI did not see before, it stops on that prompt. The script detects it, reports it and exits.
@@ -167,9 +167,9 @@ refuses to do are the most important part of it:
 - **It will not throw away unpushed work of a worker.** Retiring refuses to remove a worktree which
   holds uncommitted changes, or commits which never reached a remote. It prints what it found and
   makes you pass `--force-worktree` after you looked. The manual command destroys it silently.
-- **It will not clear a worker in the middle of a task**, and it will not type into a panel which
-  shows a chooser instead of a prompt. An Enter sent there answers whatever question was on screen.
-- **It will not put a name or a label which you did not check into a command line.** Worker names,
+- **It will not clear a worker in the middle of a task, and it will not type into a panel which
+  shows a chooser instead of a prompt.** An Enter sent there answers whatever question was on screen.
+- **It will not put a name or a label into a command line if you did not check it first.** Worker names,
   roles and labels are typed into a live shell and submitted, so they are limited to plain tokens.
   No spaces, no leading hyphen, nothing which could add a flag or a starting prompt. A name taken
   from a task brief is rejected, not executed.
@@ -177,7 +177,7 @@ refuses to do are the most important part of it:
   The alternative is to take the first one from the terminal list, and then an accident decides
   which worker gets closed.
 - **It does not sandbox anything.** A role described as read-only still has `Bash`. Read which tools
-  a role really gives before you trust a description, also the descriptions here.
+  a role really gives before you trust a description. This includes the descriptions here.
 
 ## License
 
