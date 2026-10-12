@@ -53,16 +53,26 @@ command -v cmux >/dev/null || { echo "cmux not on PATH; this skill requires cmux
 [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]*$ ]] || { echo "--name must start with a letter or digit and contain only letters, digits and . _ - : (no spaces) — got: ${NAME}" >&2; exit 2; }
 [[ -z "$LABEL" || "$LABEL" =~ ^[A-Za-z0-9][A-Za-z0-9\ ._:/-]*$ ]] || { echo "--label must start with a letter or digit and contain only letters, digits, spaces and . _ - : / — got: ${LABEL}" >&2; exit 2; }
 
+# A lookup that could not run is not a lookup that found nothing: reporting it
+# as "no panel" tells a coordinator a live worker is gone.
+LOOKUP=0
 SURFACE="$(
-  cmux list-panels --json | python3 -c '
+  cmux --json list-panels | python3 -c '
 import json, re, sys
 name = sys.argv[1]
+raw_list = sys.stdin.read()
+try:
+    panels = json.loads(raw_list)
+except ValueError:
+    first = (raw_list.strip().splitlines() or ["<nothing>"])[0][:120]
+    sys.stderr.write("cmux --json list-panels did not return JSON; it printed: " + first + "\n")
+    sys.exit(3)
 # Strip at most ONE leading status glyph. Every glyph cmux uses is non-ASCII
 # ("✳ name", "◑ name"), so requiring that keeps an ASCII-decorated title such
 # as "- bob" a genuinely different panel from "bob" instead of a collision.
 GLYPH = re.compile(r"^[^\x00-\x7F]\s+")
 hits = []
-for s in json.load(sys.stdin).get("surfaces", []):
+for s in panels.get("surfaces", []):
     raw = (s.get("title") or "").strip()
     if raw == name or GLYPH.sub("", raw) == name:
         hits.append((s.get("ref", ""), raw))
@@ -71,7 +81,14 @@ if len(hits) > 1:
 elif hits:
     print(hits[0][0])
 ' "$NAME"
-)" || true
+)" || LOOKUP=$?
+
+if [[ "$LOOKUP" -ne 0 ]]; then
+  echo "could not read the panel list from cmux, so '${NAME}' was not looked up." >&2
+  echo "This says nothing about whether the panel exists. Check that cmux is" >&2
+  echo "running and that \`cmux --json list-panels\` prints JSON." >&2
+  exit 3
+fi
 
 [[ -n "${SURFACE:-}" ]] || {
   echo "no panel found whose title matches '${NAME}'." >&2

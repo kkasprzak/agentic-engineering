@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# A stand-in for cmux that behaves the way cmux 0.63.1 was observed to behave,
+# so the spawn-worker scripts can be tested without opening real panels.
+#
+# What it reproduces, each one checked against the real binary:
+#   - `--json` is a GLOBAL option. `cmux --json list-panels` prints JSON;
+#     `cmux list-panels --json` ignores the flag and prints the text table.
+#   - a surface in that JSON carries no working directory.
+#   - `new-surface` accepts --working-directory and ignores it.
+#
+# State lives in $FAKE_CMUX_DIR:
+#   panels       one "ref<TAB>title" line per open panel
+#   screen.<n>   what read-screen prints for surface:<n> (the default is a plain prompt)
+#   calls        every invocation, one per line, arguments NUL-free and tab-joined
+#   next         the next surface number new-surface hands out
+#
+# FAKE_CMUX_LIST=text makes `--json list-panels` print the text table as well,
+# which is what a cmux that changes its output again would look like.
+set -euo pipefail
+
+D="${FAKE_CMUX_DIR:?FAKE_CMUX_DIR must be set}"
+touch "$D/panels"
+( IFS=$'\t'; printf '%s\n' "$*" ) >> "$D/calls"
+
+JSON=0
+if [[ "${1:-}" == --json ]]; then JSON=1; shift; fi
+CMD="${1:-}"; shift || true
+
+arg() {  # the value after a flag, e.g. arg --surface "$@"
+  local want="$1"; shift
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "$want" ]]; then printf '%s' "${2:-}"; return; fi
+    shift
+  done
+}
+
+text_table() {
+  while IFS=$'\t' read -r ref title; do
+    printf '  %s  terminal  "%s"\n' "$ref" "$title"
+  done < "$D/panels"
+}
+
+case "$CMD" in
+  list-panels)
+    if [[ "$JSON" -eq 1 && "${FAKE_CMUX_LIST:-json}" != text ]]; then
+      python3 - "$D/panels" <<'PY'
+import json, sys
+surfaces = []
+for i, line in enumerate(open(sys.argv[1], encoding="utf-8")):
+    ref, _, title = line.rstrip("\n").partition("\t")
+    surfaces.append({"ref": ref, "title": title, "type": "terminal", "index": i,
+                     "focused": False, "selected_in_pane": False,
+                     "index_in_pane": i, "pane_ref": "pane:1"})
+print(json.dumps({"workspace_ref": "workspace:1", "window_ref": "window:1",
+                  "surfaces": surfaces}, indent=2))
+PY
+    else
+      text_table
+    fi
+    ;;
+  new-surface)
+    n="$(cat "$D/next" 2>/dev/null || echo 90)"
+    echo $(( n + 1 )) > "$D/next"
+    printf 'surface:%s\t~\n' "$n" >> "$D/panels"
+    echo "OK surface:${n} pane:1 workspace:1"
+    ;;
+  rename-tab)
+    ref="$(arg --surface "$@")"; title="${!#}"
+    awk -F'\t' -v r="$ref" -v t="$title" 'BEGIN{OFS="\t"} $1==r{$2=t} {print}' "$D/panels" > "$D/panels.new"
+    mv "$D/panels.new" "$D/panels"
+    echo OK
+    ;;
+  close-surface)
+    ref="$(arg --surface "$@")"
+    grep -q "^${ref}"$'\t' "$D/panels" || { echo "Error: surface not found" >&2; exit 1; }
+    awk -F'\t' -v r="$ref" '$1!=r' "$D/panels" > "$D/panels.new"
+    mv "$D/panels.new" "$D/panels"
+    echo OK
+    ;;
+  read-screen)
+    ref="$(arg --surface "$@")"
+    f="$D/screen.${ref#surface:}"
+    if [[ -f "$f" ]]; then cat "$f"; else printf '❯ \n\n  auto mode on · ctx: 1%%\n'; fi
+    ;;
+  send|send-key)
+    echo OK
+    ;;
+  *)
+    echo "fake cmux: unsupported command: $CMD" >&2
+    exit 1
+    ;;
+esac
