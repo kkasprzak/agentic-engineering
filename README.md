@@ -92,12 +92,19 @@ reviewer nothing but a path.
 |---|---|
 | `/peer-review:fresh-eyes` *(command)* | Picks the target if you did not name one — a document from the conversation, the uncommitted diff, or the branch diff against the repository's default branch — says which it picked, and relays what comes back verbatim, including a plain "nothing found". |
 | `peer-review:fresh-eyes-review` *(agent)* | Reads the artifact and reports blunders, oversights, omissions, logical problems and bugs. Read-only by construction: no edit tools, and the only shell it holds is `git log`, `diff`, `show` and `status`. |
+| `/peer-review:primitive-obsession` *(command)* | Resolves the target the same way, then hands it to a reviewer with one lens: a `str`, `float`, `bool` or dict with fixed keys standing in for a concept the domain has a name for. Relays the report verbatim. |
+| `peer-review:type-review` *(agent)* | Asks eight questions of every primitive in the artifact — can it hold an illegal value, is it compared or computed from, do several fields mean one thing, how many states can be built against how many are valid, can two arguments be swapped, does the type already exist — and names the remedy: on a plan, "do not introduce this primitive"; on a diff, Fowler's *Replace Primitive with Object*. It does not report primitives at the subsystem's edge, open sets kept as `str` on purpose, or values local to an algorithm. Same tools as fresh-eyes, so it reports and never fixes. |
 
 **The reviewer is given no context on purpose.** Not a summary of the design, not why it was built
 that way, not what you were worried about. A helpful preamble hands your own reasoning straight back
 to you and the review becomes an echo — which is exactly the failure a fresh pair of eyes exists to
 avoid. This is also why it reports rather than fixes: what to do about a finding is a decision, and
 the reviewer is not the one making it.
+
+**The second lens exists because the question kept being asked by hand.** "Is this string really a
+domain concept?" came up three times in two days on one project, found a missing type each time,
+and each time depended on somebody remembering to ask. A reviewer with a lens is still not an echo
+— it is given a question, not your reasoning — so it can be a step rather than a habit.
 
 ### `pipeline-watch`
 
