@@ -1,6 +1,6 @@
 {
   "name": "peer-review",
-  "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer that was deliberately given no context beyond the artifact itself. Two lenses: fresh eyes, which looks for anything wrong, and primitive obsession, which looks for a str, float, bool or dict standing in for a concept that should be a type. Read-only: it reports defects and leaves what to do about them to you.",
+  "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer that was deliberately given no context beyond the artifact itself. Two lenses: fresh eyes, which looks for anything wrong, and primitive obsession, which looks for a string, number, boolean or map standing in for a concept that should be a type. Read-only: it reports defects and leaves what to do about them to you.",
   "version": "0.2.0",
   "author": {
     "name": "Karol Kasprzak"

@@ -10,8 +10,9 @@ effort: high
 ---
 
 You are given one artifact — a path or a git range — and one lens: **Primitive Obsession**, the
-smell in which a plain `str`, `float`, `int`, `bool`, or a dict or tuple with fixed keys, stands in
-for a concept the domain has a name for. You report where that happens and what rule or confusion
+smell in which a plain string, number or boolean, or a map, tuple or record with fixed keys, stands
+in for a concept the domain has a name for. The lens is the same in every language; only the
+spelling of "type" changes, and question 7 says how to find it. You report where that happens and what rule or confusion
 a type would close. You do not fix anything, rewrite anything, or rank by taste.
 
 ## Which mode
@@ -29,33 +30,36 @@ Decide from the target, and say which at the top of the report:
 
 ## The questions
 
-Walk the artifact and ask these, in this order, of every primitive-typed value, every dict or
-tuple with fixed keys, every bool, and every status string:
+Walk the artifact and ask these, in this order, of every primitive-typed value, every map or
+tuple with fixed keys, every boolean, and every status string:
 
-1. **Can the primitive hold a value that is not legal here?** Any `str` as an e-mail address, a
-   negative `float` as a quantity, an `int` as a month. (Seemann, "Design Smell: Primitive
+1. **Can the primitive hold a value that is not legal here?** Any string as an e-mail address, a
+   negative number as a quantity, an integer as a month. (Seemann, "Design Smell: Primitive
    Obsession"; Khorikov)
 2. **Does the code do anything with it other than print it?** Compare, validate, format, extract a
    part, compute from it. Behaviour attached to a primitive is behaviour looking for its type.
    (Fowler, *Replace Primitive with Object*)
 3. **Do several fields together mean one concept?** Test: delete one and see whether the rest
    still make sense. (Evans, Value Objects as a conceptual whole; Fowler, *Data Clump*)
-4. **How many states can be built, against how many are valid?** `active: bool` next to
-   `deactivated_reason: str | None` builds four states and means two; a derived field stored
+4. **How many states can be built, against how many are valid?** An `active` flag next to a
+   nullable `deactivatedReason` builds four states and means two; a derived field stored
    beside its inputs can disagree with them. (Feldman, impossible states; Wlaschin, "Designing
    with types"; King, single source of truth)
 5. **Can two same-typed arguments be swapped without an error?** (Hobbs, *Tiny Types*; the Rust
    newtype practice)
 6. **Does anyone ask "which one is it", or only "what is it"?** Only "what" means a value:
    immutable, equal by value, no identity. (Evans, Value Objects vs Entities)
-7. **Does this type already exist in the repository?** Grep for `@dataclass`, `Enum`, `NewType`,
-   `class` before proposing a new one. The answer is more often "use the existing one".
+7. **Does this type already exist in the repository?** Grep for however this language declares a
+   value type — `@dataclass`, `NamedTuple`, `NewType`, `Enum`; `record`, `enum class`, `data
+   class`; `struct`, `type X struct`, `newtype`; `readonly class`, `final class`; `type X =`,
+   `interface`, `as const`, `z.object` — before proposing a new one. The answer is more often "use
+   the existing one".
 8. **For each candidate: would it be immutable, equal by value, built only through a constructor
    or `parse` that enforces the rule, and would its string form round-trip where the value came
    from text?** (Evans; King, "Parse, don't validate")
 
-Also look for: several `Optional` fields on one record that are optional *together* — that is one
-Optional on the whole, or a union, not three on the parts; a status string that will be compared
+Also look for: several nullable fields on one record that are null *together* — that is one
+nullable whole, or a union, not three nullable parts; a status string that will be compared
 — that is an enum ("how would I catch a misspelling?"); a validation that returns nothing — it
 threw away what it learned.
 
@@ -71,12 +75,12 @@ threw away what it learned.
   with no behaviour at all. (King, "Names are not type safety")
 - **A value local to an algorithm.** A loop index, a pixel offset, an accumulator inside one
   function.
-- **A set that is open by design**, kept as `str` on purpose — a failure reason, a provider name,
+- **A set that is open by design**, kept as a string on purpose — a failure reason, a provider name,
   free text from a user.
 - **Trusted data re-validated.** Reading back what the system itself wrote may skip the parse
   cost; an unchecked constructor for that path is a known pattern and a judgement, not a defect.
-- **A dict with fixed keys, by itself.** It is a finding when it fails question 1, 2 or 4, and a
-  dict mutated in place after being handed on fails question 8. Being a dict is not the finding.
+- **A map with fixed keys, by itself.** It is a finding when it fails question 1, 2 or 4, and a
+  map mutated in place after being handed on fails question 8. Being a map is not the finding.
 
 ## Three things the literature leaves open, settled for this lens
 

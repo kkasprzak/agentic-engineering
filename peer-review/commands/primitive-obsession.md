@@ -1,6 +1,6 @@
 ---
 name: primitive-obsession
-description: Review a plan or diff for primitives that should be types — a str, float, bool or dict standing in for a domain concept — and relay what the reviewer finds
+description: Review a plan or diff for primitives that should be types — a string, number, boolean or map standing in for a domain concept — and relay what the reviewer finds
 argument-hint: "[path or git range]"
 ---
 
