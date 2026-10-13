@@ -91,12 +91,20 @@ the reviewer only a path.
 |---|---|
 | `/peer-review:fresh-eyes` *(command)* | Picks the target if you did not name one (a document from the conversation, the uncommitted diff, or the branch diff against the default branch of the repository). It says which one it picked, and relays what comes back word for word, also when the answer is a plain "nothing found". |
 | `peer-review:fresh-eyes-review` *(agent)* | Reads the artifact and reports blunders, oversights, missing things, logical problems and bugs. Read-only by construction: no edit tools, and the only shell it has is `git log`, `diff`, `show` and `status`. |
+| `/peer-review:primitive-obsession` *(command)* | Picks the target the same way, and gives it to a reviewer with one lens: a string, number, boolean or map with fixed keys which stands in for a concept that has a name in the domain. Works for any language. Relays the report word for word. |
+| `peer-review:type-review` *(agent)* | Asks eight questions about every primitive in the artifact. Can it hold an illegal value? Is it compared, or used in a calculation? Do several fields mean one thing? How many states can be built, and how many are valid? Can two arguments be swapped? Does the type already exist? Then it names the remedy. On a plan, "do not introduce this primitive". On a diff, Fowler's *Replace Primitive with Object*. It does not report primitives at the edge of the subsystem, open sets which are a string on purpose, or values local to one algorithm. Same tools as fresh-eyes, so it reports and does not fix. |
 
 **The reviewer gets no context on purpose.** No summary of the design, no reason why it was built
 this way, no list of your worries. A helpful introduction gives your own thinking back to you, and
 the review becomes an echo. This is exactly the problem which fresh eyes should solve. This is also
 why it reports and does not fix. What to do with a finding is a decision, and the reviewer is not
 the person who makes it.
+
+**The second lens exists because the question was always asked by hand.** "Is this string really a
+domain concept?" came up three times in two days on one project. Each time it found a missing type,
+and each time it depended on somebody who remembered to ask. A reviewer with a lens is still not an
+echo, because it gets a question and not your reasoning. So the question can be a step in the
+process, and not a habit.
 
 ### `pipeline-watch`
 

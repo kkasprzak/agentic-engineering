@@ -23,7 +23,7 @@
     {
       "name": "peer-review",
       "source": "./peer-review",
-      "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer deliberately given no context beyond the artifact itself. Read-only: reports defects, leaves the decision to you."
+      "description": "Get a verdict on work that already exists — a plan, a document, an uncommitted diff, or the current branch's work — from a reviewer deliberately given no context beyond the artifact itself. Two lenses: fresh eyes, and primitive obsession — primitives standing in for concepts that should be types. Read-only: reports defects, leaves the decision to you."
     },
     {
       "name": "pipeline-watch",
