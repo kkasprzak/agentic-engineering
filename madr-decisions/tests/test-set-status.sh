@@ -108,6 +108,10 @@ echo "set-status.sh"
 
 ( workdir
   "$NEW" "Manual" >/dev/null 2>&1
+  # Accepted first: only an accepted record can be superseded, so the refusal
+  # below has to be about "superseded is not a status you set", not about the
+  # record still being a draft — which would print a different hint.
+  "$SET" 0000 accepted >/dev/null 2>&1
   out=$("$SET" 0000 "superseded by 0001" 2>&1)
   code=$?
   check "superseded is not a status you set" "$code" "2"

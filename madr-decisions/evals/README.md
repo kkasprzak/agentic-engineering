@@ -99,10 +99,3 @@ the agent picks, so the trace is the only place those checks can read the file's
 * **Whether a filled record is any good.** Nothing reads a finished record and judges its content
   beyond the checks written here.
 
-## Known follow-up on the plugin
-
-`new-decision.sh` currently accepts `--supersedes` against a record in any MADR status, including
-`rejected` and `deprecated` (`skills/record-decision/scripts/new-decision.sh:210`). The intended
-rule is that only an `accepted` record can be superseded. Case `05` therefore does **not** grade the
-direction of the old record's status change. When the script is narrowed, add a
-`rejected-not-superseded` grader to `05` and it becomes the regression test for that change.

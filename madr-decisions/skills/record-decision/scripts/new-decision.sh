@@ -21,7 +21,7 @@
 # same number. Gaps are normal and numbers are never reused.
 #
 # Exit 0 on success, 1 on a usage error, 2 when the target of --supersedes cannot
-# be used (missing, ambiguous, no frontmatter, or out of scope).
+# be used (missing, ambiguous, no frontmatter, out of scope, or not accepted).
 #
 # Things this absorbs so nobody has to hold them:
 #   - only MADR's five frontmatter keys. A sixth field of your own is how a
@@ -32,6 +32,9 @@
 #     is history and stays byte-for-byte as it was.
 #   - a narrowed record may not supersede a system one. A module cannot overrule
 #     a decision that binds other modules.
+#   - only an accepted record can be superseded. A draft is filled in, not
+#     succeeded; a closed record (rejected or deprecated) has nothing to
+#     replace. `--print --supersedes` is refused the same way.
 #   - BSD and GNU sed differ: `\+` silently does nothing on BSD and leaves spaces
 #     in filenames. Hence `sed -E` throughout.
 set -uo pipefail
@@ -57,7 +60,7 @@ while [ $# -gt 0 ]; do
     --supersedes) need_value --supersedes $#; supersedes="$2"; shift 2 ;;
     --root)       need_value --root $#;       root="$2";       shift 2 ;;
     --print)      print_only=1; shift ;;
-    -h|--help)    sed -n '2,36p' "$0"; exit 0 ;;
+    -h|--help)    sed -n '2,39p' "$0"; exit 0 ;;
     --)           shift; [ $# -gt 0 ] && title="$1"; break ;;
     -*)           echo "unknown option: $1" >&2; exit 1 ;;
     *)            title="$1"; shift ;;
@@ -217,17 +220,47 @@ if [ -n "$supersedes" ]; then
       exit 2 ;;
   esac
 
-  # Superseding something that was already superseded breaks the chain silently:
-  # the old record is repointed at the new one, and whatever superseded it first
-  # is left claiming to replace a record that no longer refers back to it. The
-  # record to supersede is the one at the end of the chain.
+  # Only an accepted record can be superseded. A draft is filled in, not
+  # succeeded; a rejected or deprecated record is already closed and has
+  # nothing to replace; one already superseded would have its chain repointed
+  # and leave whatever replaced it first claiming to replace a record that no
+  # longer refers back to it. The `*)` branch is deliberate even though the
+  # MADR-set gate above already narrows `$old_status` to five shapes: the two
+  # case statements are not the same check, and a `*)` here means a third one
+  # added to one of them without the other cannot fall through to a supersede.
   case "$old_status" in
-    *superseded\ by*)
+    accepted) ;;
+    "superseded by "*)
       {
+        replacement="${old_status#superseded by }"
         echo "refusing: $supersedes is already $old_status"
         echo "  Superseding it again would repoint it and leave the record that"
-        echo "  replaced it pointing at nothing. Supersede the current record"
-        echo "  instead — follow the chain to the end."
+        echo "  replaced it pointing at nothing. Read ${replacement} first: if it is"
+        echo "  accepted, supersede that one instead; if it is a draft or already"
+        echo "  closed, this command refuses it the same way, for the same reason."
+      } >&2
+      exit 2 ;;
+    rejected|deprecated)
+      {
+        echo "refusing: $supersedes is \"$old_status\", which is closed"
+        echo "  A closed record is the account of a decision that was declined or"
+        echo "  retired, not one to replace. If the question is live again, that is"
+        echo "  a new decision with its own record, which can refer back to this"
+        echo "  one in its Context."
+        echo "  Run this command again without --supersedes $supersedes."
+      } >&2
+      exit 2 ;;
+    proposed)
+      {
+        echo "refusing: $supersedes is still a draft"
+        echo "  A draft is filled in and accepted, not superseded. Only a decision"
+        echo "  that was actually taken can be replaced by one that supersedes it."
+      } >&2
+      exit 2 ;;
+    *)
+      {
+        echo "refusing: $supersedes is \"$old_status\", and only an accepted record"
+        echo "  can be superseded."
       } >&2
       exit 2 ;;
   esac

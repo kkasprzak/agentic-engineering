@@ -220,6 +220,13 @@ r=$(reason_for "$WORK/docs/adr/0005-declined.md")
 hasnt "a rejected record is not offered as a supersede target" "--supersedes 0005" "$r"
 has   "and a fresh record is offered instead" "--root docs/adr" "$r"
 
+# A deprecated decision is closed the same way a rejected one is: there is
+# nothing left to supersede, because the generator now refuses that too.
+printf -- '---\nstatus: "deprecated"\n---\n' > "$WORK/docs/adr/0006-retired.md"
+r=$(reason_for "$WORK/docs/adr/0006-retired.md")
+hasnt "a deprecated record is not offered as a supersede target" "--supersedes 0006" "$r"
+has   "and a fresh record is offered instead for deprecated too" "--root docs/adr" "$r"
+
 # --- the shell path ----------------------------------------------------------
 #
 # A live agent asked to accept a record reached for `sed -i` on its first try,

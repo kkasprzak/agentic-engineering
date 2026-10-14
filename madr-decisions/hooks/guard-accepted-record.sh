@@ -224,8 +224,10 @@ than one. Superseding it again is refused by the generator as well: it would
 repoint this record and leave ${replacement} claiming to replace something that
 no longer refers back to it.
 
-Read ${replacement} first. If the decision has changed again, supersede that one
-— follow the chain to its end and supersede the record at the end of it."
+Read ${replacement} first. Supersede it only if it is accepted — the generator
+refuses a draft or a closed record the same way it refused this one. A draft
+is accepted first; a rejected or deprecated record gets a fresh one instead,
+with no --supersedes."
     ;;
   rejected)
     what="This decision was declined, so there is nothing here to supersede — a rejected
@@ -240,11 +242,11 @@ refer to this one in its Context:
     what="This record no longer applies and has been marked so. Editing it to describe
 what is true now would turn a retired decision into a live one.
 
-If something has taken its place, record that and supersede this one:
+A deprecated record is closed, so there is nothing here to supersede. If the
+question is live again, write a new record with no --supersedes and refer to
+this one in its Context:
 
-  ${supersede_cmd}
-
-If nothing replaced it — it simply stopped mattering — leave it as it is."
+  ${fresh_cmd}"
     ;;
   *)
     what="This record is \"${status}\": a decision that was taken, which makes it history
