@@ -123,6 +123,11 @@ It picks the number, the path and the filename, and writes the frontmatter with 
 and nothing else. Superseding changes **one line** of the old record — its status — and leaves the
 rest of that file exactly as it was.
 
+**Only an `accepted` record can be superseded.** A `proposed` record is a draft — it gets filled in
+and accepted, not replaced. A `rejected` or `deprecated` record is already closed, with nothing to
+replace; if the question is live again, run the generator again without `--supersedes` and refer
+back to the closed record in Context.
+
 `--print` is also how you check a record you have already filled in still matches the skeleton:
 diff it against the file.
 
@@ -157,7 +162,8 @@ root.
 
 Three moves, and nothing else: `proposed → accepted`, `proposed → rejected`, `accepted →
 deprecated`. A record is never reopened, and `superseded by <id>` is not a status you set — that is
-`--supersedes`, which writes the replacement and flips this one together.
+`--supersedes`, which writes the replacement and flips this one together, and only for a record
+that is currently `accepted`.
 
 **The three people fields can only be set while the record is still a draft, or in the same call
 that accepts it.** Afterwards they are history like the rest of it.

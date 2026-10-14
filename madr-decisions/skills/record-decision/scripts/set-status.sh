@@ -271,8 +271,14 @@ if [ -n "$new_status" ]; then
       case "$new_status" in
         superseded*)
           echo "  Superseding is not a status you set. Write the record that replaces"
-          echo "  this one, and both ends are updated in a single step:"
-          echo "    ${supersede_hint}"
+          echo "  this one, and both ends are updated in a single step — but only an"
+          echo "  accepted record can be superseded."
+          if [ "$current" = accepted ]; then
+            echo "    ${supersede_hint}"
+          else
+            echo "  Accept it first, then supersede it:"
+            echo "    ${0%/*}/set-status.sh ${id} accepted"
+          fi
           echo ;;
       esac
 

@@ -39,6 +39,15 @@ changed_lines() {
        END { if (n > FNR) c += n - FNR; print c + 0 }' "$1" "$2"
 }
 
+# Only an accepted record can be superseded, but the generator always writes a
+# fresh one at proposed. Tests that need an accepted fixture move it there by
+# hand instead of shelling out to set-status.sh, which would couple this suite
+# to the lifecycle script's own behaviour. Generator output is LF, so the `$`
+# anchor is exact on BSD, GNU and BusyBox sed alike — no `sed -i` either way.
+accept() {
+  sed -E 's/^status: "proposed"$/status: "accepted"/' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+
 # Bash has no portable timeout, and macOS ships no `timeout(1)`. perl's alarm is
 # everywhere and is the only reason a hang shows up as a failure here rather
 # than as a test run that never ends.
@@ -178,6 +187,7 @@ echo "new-decision.sh"
 
 ( workdir
   "$SCRIPT" --scope chat "Narrow One" >/dev/null 2>&1
+  accept docs/adr/chat/0000-narrow-one.md
   "$SCRIPT" --scope chat --supersedes chat/0000 "Narrow Two" >/dev/null 2>&1
   check "a narrowed record can supersede its own scope" "$?" "0"
   # The identifier must carry the scope, or the chain points at a system record
@@ -197,6 +207,7 @@ echo "new-decision.sh"
 
 ( workdir
   "$SCRIPT" "Original" >/dev/null 2>&1
+  accept docs/adr/0000-original.md
   cp docs/adr/0000-original.md /tmp/before.$$
   "$SCRIPT" --supersedes 0000 "Replacement" >/dev/null 2>&1
   n=$(changed_lines /tmp/before.$$ docs/adr/0000-original.md)
@@ -207,6 +218,7 @@ echo "new-decision.sh"
 
 ( workdir
   "$SCRIPT" "Original" >/dev/null 2>&1
+  accept docs/adr/0000-original.md
   "$SCRIPT" --supersedes 0000 "Second" >/dev/null 2>&1
   "$SCRIPT" --supersedes 0000 "Third"  >/dev/null 2>&1
   code=$?
@@ -217,8 +229,58 @@ echo "new-decision.sh"
 
 ( workdir
   "$SCRIPT" "System Wide" >/dev/null 2>&1
+  # Accepted so the refusal below can only be the scope check — otherwise a
+  # proposed target would exit 2 at the status gate even if the scope check
+  # were deleted, and this test would stay green for the wrong reason.
+  accept docs/adr/0000-system-wide.md
   "$SCRIPT" --scope chat --supersedes 0000 "Narrowed" >/dev/null 2>&1
   check "a narrowed record may not supersede a system one" "$?" "2"
+)
+
+( workdir
+  "$SCRIPT" "Draft" >/dev/null 2>&1
+  cp docs/adr/0000-draft.md /tmp/before.$$
+  out=$("$SCRIPT" --supersedes 0000 "Replacement" 2>&1)
+  code=$?
+  check "a proposed target is refused" "$code" "2"
+  case "$out" in
+    *"still a draft"*) ok "and says why" ;;
+    *) bad "and says why" "not in output: $out" ;;
+  esac
+  n=$(changed_lines /tmp/before.$$ docs/adr/0000-draft.md)
+  rm -f /tmp/before.$$
+  check "nothing changed" "$n" "0"
+  check "no new file was written" "$(ls docs/adr | wc -l | tr -d ' ')" "1"
+)
+
+( workdir
+  mkdir -p docs/adr
+  printf -- '---\nstatus: "rejected"\ndate: 2026-01-01\n---\n' > docs/adr/0000-declined.md
+  out=$("$SCRIPT" --supersedes 0000 "Replacement" 2>&1)
+  code=$?
+  check "a rejected target is refused" "$code" "2"
+  case "$out" in
+    *"which is closed"*) ok "and says why it is closed" ;;
+    *) bad "and says why it is closed" "not in output: $out" ;;
+  esac
+  check "no new file was written" "$(ls docs/adr | wc -l | tr -d ' ')" "1"
+  check "the old record was not flipped" \
+        "$(grep '^status:' docs/adr/0000-declined.md)" 'status: "rejected"'
+)
+
+( workdir
+  mkdir -p docs/adr
+  printf -- '---\nstatus: "deprecated"\ndate: 2026-01-01\n---\n' > docs/adr/0000-retired.md
+  out=$("$SCRIPT" --supersedes 0000 "Replacement" 2>&1)
+  code=$?
+  check "a deprecated target is refused" "$code" "2"
+  case "$out" in
+    *"which is closed"*) ok "and says why it is closed too" ;;
+    *) bad "and says why it is closed too" "not in output: $out" ;;
+  esac
+  check "no new file was written" "$(ls docs/adr | wc -l | tr -d ' ')" "1"
+  check "the old record was not flipped" \
+        "$(grep '^status:' docs/adr/0000-retired.md)" 'status: "deprecated"'
 )
 
 ( workdir
@@ -269,6 +331,10 @@ echo "new-decision.sh"
 
 ( workdir
   "$SCRIPT" "Original" >/dev/null 2>&1
+  # Accepted before the directory goes read-only: the point of this case is the
+  # write failure, not the status gate, and only an accepted record reaches the
+  # write at all.
+  accept docs/adr/0000-original.md
   chmod 555 docs/adr
   # chmod does not stop root, so under a root CI container the script would
   # succeed and these three would fail while the script is correct. A suite that
@@ -288,7 +354,7 @@ echo "new-decision.sh"
     check "an unwritable directory is an error, not a success" "$code" "1"
     check "nothing was half-done" "$(ls docs/adr | wc -l | tr -d ' ')" "1"
     check "the old record was not flipped" \
-          "$(grep '^status:' docs/adr/0000-original.md)" 'status: "proposed"'
+          "$(grep '^status:' docs/adr/0000-original.md)" 'status: "accepted"'
   fi
 )
 

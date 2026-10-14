@@ -28,8 +28,10 @@ keys and nothing more. A sixth field of your own is how a format stops being a f
 
 **Supersedes by writing, not by editing.** `--supersedes` creates the new record and changes exactly
 one line of the old one, its status. Everything else in that file is history and stays byte for byte
-as it was. This is the behaviour the plugin exists for, and it is the assertion its tests are built
-around. The tests are in `madr-decisions/tests/`, three suites for the generator, the lifecycle
+as it was. Only an `accepted` record can be superseded: a draft is filled in and accepted, not
+replaced, and a record that was already rejected or deprecated is closed history with nothing to
+replace — the refusal says to write the new record without `--supersedes` instead. This is the
+behaviour the plugin exists for, and it is the assertion its tests are built around. The tests are in `madr-decisions/tests/`, three suites for the generator, the lifecycle
 script and the guard hook. Each one exits non-zero when anything fails. They need `perl` for their
 timeouts and `python3` for the guard suite. Where one of them is missing, the cases which depend on
 it say so and are skipped, not reported as passes.
@@ -142,6 +144,7 @@ no field which must change together with the status. So:
 | this plugin | MADR | why |
 |---|---|---|
 | three transitions, everything else refused | no transitions defined | a closed set catches mistakes, an open one cannot |
+| only an `accepted` record can be superseded | no rule — any status can carry `superseded by` | a draft is edited, a closed record has nothing to replace |
 | `date` is the day the record was written and never changes | *"when the decision was last updated"* | a record is dated history here, so the date of the decision is the useful one |
 | `superseded by 0014` | `superseded by ADR-0123` | identifiers are relative to the directory here, and `chat/0014` has no natural `ADR-` form |
 | a record is immutable once accepted | no such rule | see above |

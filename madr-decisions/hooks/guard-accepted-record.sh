@@ -240,11 +240,11 @@ refer to this one in its Context:
     what="This record no longer applies and has been marked so. Editing it to describe
 what is true now would turn a retired decision into a live one.
 
-If something has taken its place, record that and supersede this one:
+A deprecated record is closed, so there is nothing here to supersede. If the
+question is live again, write a new record with no --supersedes and refer to
+this one in its Context:
 
-  ${supersede_cmd}
-
-If nothing replaced it — it simply stopped mattering — leave it as it is."
+  ${fresh_cmd}"
     ;;
   *)
     what="This record is \"${status}\": a decision that was taken, which makes it history

@@ -18,7 +18,7 @@
     {
       "name": "madr-decisions",
       "source": "./madr-decisions",
-      "description": "Records decisions in MADR, and keeps them readable as history. Generates the record instead of describing the format, so its shape is never recalled from memory. Supersedes a decision by writing a new one and flipping a single line of the old, because a record rewritten to match today's code destroys the only account of what was decided. Moves a record through proposed, accepted, rejected and deprecated, and asks a person before it accepts one. Then refuses the edit which started all this: once a record is settled, a hook turns down both Edit and the shell, and says which command to run instead."
+      "description": "Records decisions in MADR, and keeps them readable as history. Generates the record instead of describing the format, so its shape is never recalled from memory. Supersedes an accepted decision by writing a new one and flipping a single line of the old, because a record rewritten to match today's code destroys the only account of what was decided. Moves a record through proposed, accepted, rejected and deprecated, and asks a person before it accepts one. Then refuses the edit which started all this: once a record is settled, a hook turns down both Edit and the shell, and says which command to run instead."
     },
     {
       "name": "peer-review",
