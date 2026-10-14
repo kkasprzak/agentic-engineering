@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: 07-neg-proposed-editable
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 20
+  timeout_seconds: 400
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit, Bash]
+  prompt: |
+    Fill in Decision Outcome and Consequences on 0011. We went with Redis and a 5 minute TTL — the
+    in-process cache was dropped because pods would disagree with each other after an edit, and
+    tuning the query alone did not get the join call under our budget.
