@@ -224,8 +224,10 @@ than one. Superseding it again is refused by the generator as well: it would
 repoint this record and leave ${replacement} claiming to replace something that
 no longer refers back to it.
 
-Read ${replacement} first. If the decision has changed again, supersede that one
-— follow the chain to its end and supersede the record at the end of it."
+Read ${replacement} first. Supersede it only if it is accepted — the generator
+refuses a draft or a closed record the same way it refused this one. A draft
+is accepted first; a rejected or deprecated record gets a fresh one instead,
+with no --supersedes."
     ;;
   rejected)
     what="This decision was declined, so there is nothing here to supersede — a rejected

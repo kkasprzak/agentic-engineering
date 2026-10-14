@@ -232,10 +232,12 @@ if [ -n "$supersedes" ]; then
     accepted) ;;
     "superseded by "*)
       {
+        replacement="${old_status#superseded by }"
         echo "refusing: $supersedes is already $old_status"
         echo "  Superseding it again would repoint it and leave the record that"
-        echo "  replaced it pointing at nothing. Supersede the current record"
-        echo "  instead — follow the chain to the end."
+        echo "  replaced it pointing at nothing. Read ${replacement} first: if it is"
+        echo "  accepted, supersede that one instead; if it is a draft or already"
+        echo "  closed, this command refuses it the same way, for the same reason."
       } >&2
       exit 2 ;;
     rejected|deprecated)

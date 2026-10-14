@@ -225,8 +225,10 @@ esac
 gen="${0%/*}/new-decision.sh"
 if [ -n "${scope:-}" ]; then
   supersede_hint="${gen} --root ${root} --scope ${scope} --supersedes ${scope}/${num} \"<new title>\""
+  fresh_hint="${gen} --root ${root} --scope ${scope} \"<new title>\""
 else
   supersede_hint="${gen} --root ${root} --supersedes ${num} \"<new title>\""
+  fresh_hint="${gen} --root ${root} \"<new title>\""
 fi
 
 # --- only a draft takes field edits -----------------------------------------
@@ -273,12 +275,22 @@ if [ -n "$new_status" ]; then
           echo "  Superseding is not a status you set. Write the record that replaces"
           echo "  this one, and both ends are updated in a single step — but only an"
           echo "  accepted record can be superseded."
-          if [ "$current" = accepted ]; then
-            echo "    ${supersede_hint}"
-          else
-            echo "  Accept it first, then supersede it:"
-            echo "    ${0%/*}/set-status.sh ${id} accepted"
-          fi
+          # The next step depends on what $current actually is: a draft is
+          # accepted first (and the transition table below refuses any other
+          # move into accepted), a closed record has nothing to replace and
+          # gets a fresh one instead, and an already-superseded one is covered
+          # by the "Act on the replacement" explanation further down.
+          case "$current" in
+            proposed)
+              echo "  Accept it first, then supersede it:"
+              echo "    ${0%/*}/set-status.sh --root ${root} ${id} accepted" ;;
+            accepted)
+              echo "    ${supersede_hint}" ;;
+            rejected|deprecated)
+              echo "  It is closed, so there is nothing here to supersede. Write a"
+              echo "  new record with no --supersedes instead:"
+              echo "    ${fresh_hint}" ;;
+          esac
           echo ;;
       esac
 
