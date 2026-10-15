@@ -93,6 +93,8 @@ the reviewer only a path.
 | `peer-review:fresh-eyes-review` *(agent)* | Reads the artifact and reports blunders, oversights, missing things, logical problems and bugs. Read-only by construction: no edit tools, and the only shell it has is `git log`, `diff`, `show` and `status`. |
 | `/peer-review:primitive-obsession` *(command)* | Picks the target the same way, and gives it to a reviewer with one lens: a string, number, boolean or map with fixed keys which stands in for a concept that has a name in the domain. Works for any language. Relays the report word for word. |
 | `peer-review:type-review` *(agent)* | Asks eight questions about every primitive in the artifact. Can it hold an illegal value? Is it compared, or used in a calculation? Do several fields mean one thing? How many states can be built, and how many are valid? Can two arguments be swapped? Does the type already exist? Then it names the remedy. On a plan, "do not introduce this primitive". On a diff, Fowler's *Replace Primitive with Object*. It does not report primitives at the edge of the subsystem, open sets which are a string on purpose, or values local to one algorithm. Same tools as fresh-eyes, so it reports and does not fix. |
+| `/peer-review:obscure-test` *(command)* | Picks the target the same way, but only test files: when a diff touches no test, it says so and stops. Gives the target to a reviewer which asks one thing: can a reader tell what each test is trying to show? Relays the report word for word. |
+| `peer-review:test-review` *(agent)* | Reads the tests against eight passages from Meszaros, *xUnit Test Patterns*, and against their own names. Reports Obscure Test, Eager Test, Mystery Guest, irrelevant detail, magic literals and the expressiveness gap, worst first, each with one line of direction. Lists the tests which do it well too, so the author knows which pattern to copy. Before it says that some values do not matter or that an assertion checks nothing, it traces the fixture through the code. When it cannot, it says the claim is unverified. Same tools as the other two. |
 
 **The reviewer gets no context on purpose.** No summary of the design, no reason why it was built
 this way, no list of your worries. A helpful introduction gives your own thinking back to you, and
@@ -105,6 +107,12 @@ domain concept?" came up three times in two days on one project. Each time it fo
 and each time it depended on somebody who remembered to ask. A reviewer with a lens is still not an
 echo, because it gets a question and not your reasoning. So the question can be a step in the
 process, and not a habit.
+
+**The third lens asks whether a test says what it shows.** Tests are reviewed for passing and for
+coverage, almost never for whether a reader can tell what they prove. One run of this lens on a
+suite which was already above average found eleven defects, among them a test which checked a
+different class than its name said. One finding was wrong: it called data irrelevant which the
+test depended on. That is why the reviewer must trace a claim like that before it reports it.
 
 ### `pipeline-watch`
 
