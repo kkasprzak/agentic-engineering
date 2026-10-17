@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: 03-which-workers
+description: Asking what roles exist runs the listing script instead of answering from memory.
+tags: [roles, fast]
+runs: 3
+execution:
+  max_turns: 8
+  timeout_seconds: 180
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  prompt: |
+    Which workers can I spawn, and what is each one for?
