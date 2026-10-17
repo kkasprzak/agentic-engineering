@@ -5,15 +5,17 @@ description: >-
   SendMessage. Use when coordinating parallel work across several sessions — "spawn a worker",
   "give me another agent", "I need someone in this role", "start two workers on this", "shut that
   worker down", "close the agent and clean up its worktree", "wipe its context before the next
-  task", or when you are about to hand a task to a session that does not exist yet. Any agent
-  definition the session can resolve works as a role. Retiring also clears up the worker's git
+  task", or when you are about to hand a task to a session that does not exist yet. Also lists the
+  worker roles it ships, with what each is for — "which workers can I spawn", "what roles are
+  available", "who should take this task". Any agent definition the session can resolve works as a
+  role. Retiring also clears up the worker's git
   worktree on request, and refuses to discard one still holding uncommitted or unpushed work.
   Clearing wipes a worker's conversation between tasks while keeping the session, its role and its
   address. Requires cmux.
   ONLY for a session that coordinates others. If your current task arrived as a message from
   another Claude session, you are a worker, not a coordinator, and this skill is not for you —
   report back instead of spawning help.
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/spawn-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/retire-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/clear-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/check-worker.sh *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/spawn-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/retire-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/clear-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/check-worker.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/list-roles.sh *), Bash(${CLAUDE_SKILL_DIR}/scripts/list-roles.sh)
 ---
 
 # Spawn a worker
@@ -21,28 +23,23 @@ allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/spawn-worker.sh *), Bash(${CLAUD
 `${CLAUDE_SKILL_DIR}/scripts/spawn-worker.sh --role <agent> --name <name> --dir <path>` creates a cmux panel, launches
 Claude Code in it as the named agent definition, and prints the surface ref.
 
-`--role` takes any agent definition the session can resolve, wherever it is defined — user scope,
-project scope, managed scope, or a plugin. The Agent tool's own list of available types is the
-reliable way to see what you can pass; do not assume a particular directory holds them.
+## Choosing a role
 
-**Pass the name exactly as that list spells it.** A role from a plugin is listed namespaced —
-`plugin-name:role-name` — and that spelling is always correct, whatever the role's origin. The three
-roles shipped here are therefore `agent-crew:developer`, `agent-crew:tester` and
-`agent-crew:solution-architect`.
+`${CLAUDE_SKILL_DIR}/scripts/list-roles.sh` prints the roles this plugin ships: the exact `--role`
+spelling, the effort each runs at, and its description. Pick by the description — it says what the
+role is for and what it is not for. The listing is read from the plugin's own role files, so it is
+never behind them.
 
-**A role's `model:` reaches a spawned session; its `effort:` does not.** Verified by asking a
-running worker what it was on: the model came from the definition even though the script passes no
-`--model`, while the effort was the machine default. So effort has to be passed at spawn, and the
-role files here deliberately carry no `effort:` key — a setting that is silently ignored is worse
-than an absent one, because it reads as configured.
+`--role` is not limited to that list. It takes any agent definition the session can resolve —
+user scope, project scope, managed scope, another plugin — spelled exactly as the Agent tool's list
+of types spells it, which for a plugin role is `plugin-name:role-name`.
 
-Recommended effort per role, since it now lives here rather than in the definition:
-
-| role | effort | why |
-|---|---|---|
-| `agent-crew:developer` | default | a scoped task with a written brief; the thinking was done upstream |
-| `agent-crew:tester` | default | mostly observation and running things, not deliberation |
-| `agent-crew:solution-architect` | `--effort high` | its whole output is judgement — sequencing, trade-offs, and deciding the task is the wrong one |
+**A role's `model:` reaches a spawned session; its `effort:` does not, by itself.** Verified by
+asking a running worker what it was on: the model came from the definition even though the script
+passes no `--model`, while the effort was the machine default. So `spawn-worker.sh` reads `effort:`
+from the role file and passes it as `--effort` — for the roles this plugin ships only, since those
+are the files it can find. An explicit `--effort` wins. Any other role runs at the machine default
+unless you pass one. The script's output says which effort was used and where it came from.
 
 An invalid name is not silently ignored: the CLI refuses and prints every name it does recognise,
 which is the fastest way to find out what a role is actually called here.

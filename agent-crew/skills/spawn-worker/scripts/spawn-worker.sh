@@ -22,9 +22,11 @@ Usage: spawn-worker.sh --role <agent> --name <session-name> --dir <path> [--effo
   --name   session name; this is the address SendMessage will use
   --dir    working directory, normally a dedicated git worktree
   --effort reasoning effort for the session, passed straight to the CLI.
-           A role definition's `effort:` does NOT reach a spawned session — only
-           `model:` does — so if a role is meant to run at anything other than
-           the machine default, it has to be passed here.
+           When omitted, it is read from the role's `effort:` if the role is one
+           this plugin ships (see list-roles.sh). The CLI itself ignores that
+           key at launch — only `model:` reaches a spawned session — so this
+           script is what makes it count. Any other role runs at the machine
+           default unless this is given.
   --wait   how long to wait for the panel to come up, in seconds (default 15).
            This is a timeout, not a duration — the script returns as soon as
            the prompt appears, which is normally a few seconds.
@@ -64,8 +66,17 @@ DIR="$(CDPATH='' cd -- "$DIR" && pwd)"
 VALID_TOKEN='^[A-Za-z0-9][A-Za-z0-9._:-]*$'
 [[ "$ROLE" =~ $VALID_TOKEN ]] || { echo "--role must start with a letter or digit and contain only letters, digits and . _ - : — got: ${ROLE}" >&2; exit 2; }
 [[ "$NAME" =~ $VALID_TOKEN ]] || { echo "--name must start with a letter or digit and contain only letters, digits and . _ - : (no spaces) — got: ${NAME}" >&2; exit 2; }
-# EFFORT is interpolated into the same typed line, so it gets the same treatment.
-[[ -z "$EFFORT" || "$EFFORT" =~ $VALID_TOKEN ]] || { echo "--effort must be a plain level name — got: ${EFFORT}" >&2; exit 2; }
+# The CLI ignores a role's `effort:` at launch, so for the roles this plugin
+# ships it is read here instead. An explicit --effort wins.
+EFFORT_FROM="flag"
+if [[ -z "$EFFORT" ]]; then
+  EFFORT="$(python3 -I "$(dirname "$0")/roles.py" effort "$ROLE" 2>/dev/null || true)"
+  EFFORT_FROM="role"
+fi
+[[ -n "$EFFORT" ]] || EFFORT_FROM="default"
+# EFFORT is interpolated into the same typed line, so it gets the same treatment
+# — whether it came from the flag or from a role file.
+[[ -z "$EFFORT" || "$EFFORT" =~ $VALID_TOKEN ]] || { echo "--effort must be a plain level name — got: ${EFFORT} (from ${EFFORT_FROM})" >&2; exit 2; }
 # DIR is typed into the same line, inside single quotes. Paths legitimately hold
 # spaces and most punctuation, so rather than an allowlist: no single quote
 # (it would close the quoting) and no control character (a newline submits).
@@ -157,8 +168,8 @@ fi
 
 cmux rename-tab --surface "$SURFACE" "$NAME" >/dev/null 2>&1 || true
 
-printf 'surface=%s\nname=%s\nrole=%s\ndir=%s\nready_after=%ss\n' \
-  "$SURFACE" "$NAME" "$ROLE" "$DIR" "$ELAPSED"
+printf 'surface=%s\nname=%s\nrole=%s\neffort=%s (%s)\ndir=%s\nready_after=%ss\n' \
+  "$SURFACE" "$NAME" "$ROLE" "${EFFORT:-machine default}" "$EFFORT_FROM" "$DIR" "$ELAPSED"
 
 if [[ "$READY" -eq 0 ]]; then
   echo
