@@ -212,6 +212,71 @@ done
   check "[bug ae-ghb] retiring drops the record" "$left" ""
 )
 
+# --- ae-8g7: the roles the plugin ships, and the effort each one runs at -----
+
+# A plugin of its own, so these cases pin the mechanism rather than whatever
+# the real role files happen to say today.
+fake_plugin() {
+  local root; root="$(newtmp)"
+  mkdir -p "$root/.claude-plugin" "$root/agents" "$root/skills/spawn-worker"
+  printf '{"name": "crew"}\n' > "$root/.claude-plugin/plugin.json"
+  cp -R "$SCRIPTS" "$root/skills/spawn-worker/scripts"
+  printf '%s' "$root"
+}
+role() {  # role <plugin> <name> <effort or ""> — a role file with a folded description
+  { printf -- '---\nname: %s\ndescription: >-\n  First line of %s,\n  second line.\n' "$2" "$2"
+    [ -n "$3" ] && printf 'effort: %s\n' "$3"
+    printf -- '---\n\nBody.\n'; } > "$1/agents/$2.md"
+}
+
+( p="$(fake_plugin)"; role "$p" alpha high; role "$p" beta ""
+  out="$("$p/skills/spawn-worker/scripts/list-roles.sh" 2>&1)"; rc=$?
+  check "[ae-8g7] list-roles succeeds" "$rc" 0
+  has   "[ae-8g7] a role is namespaced with the plugin's name" "$out" "crew:alpha"
+  has   "[ae-8g7] every role in agents/ is listed" "$out" "crew:beta"
+  has   "[ae-8g7] a folded description is printed whole" "$out" "First line of alpha, second line."
+  has   "[ae-8g7] a role's effort is shown" "$out" "crew:alpha  (effort: high)"
+  has   "[ae-8g7] a role without one says default" "$out" "crew:beta  (effort: default)"
+)
+
+( p="$(fake_plugin)"
+  out="$("$p/skills/spawn-worker/scripts/list-roles.sh" 2>&1)"; rc=$?
+  check "[ae-8g7] an empty agents/ is an error, not an empty list" "$rc" 1
+)
+
+( real="$(cd "$HERE/.." && ls agents/*.md | wc -l | tr -d ' ')"
+  got="$("$SCRIPTS/list-roles.sh" | grep -c '^agent-crew:')"
+  check "[ae-8g7] the real plugin lists one entry per role file" "$got" "$real"
+)
+
+( setup; p="$(fake_plugin)"; role "$p" alpha high; d="$(newtmp)"
+  out="$("$p/skills/spawn-worker/scripts/spawn-worker.sh" --role crew:alpha --name w1 --dir "$d" 2>&1)"
+  has   "[ae-8g7] a role's effort reaches the launch line" "$(typed)" "--effort 'high'"
+  has   "[ae-8g7] and the output says where it came from" "$out" "effort=high (role)"
+)
+
+( setup; p="$(fake_plugin)"; role "$p" alpha high; d="$(newtmp)"
+  out="$("$p/skills/spawn-worker/scripts/spawn-worker.sh" --role crew:alpha --name w1 --dir "$d" --effort low 2>&1)"
+  has   "[ae-8g7] an explicit --effort wins over the role's" "$(typed)" "--effort 'low'"
+  lacks "[ae-8g7] and the role's is not passed as well" "$(typed)" "'high'"
+  has   "[ae-8g7] and the output says so" "$out" "effort=low (flag)"
+)
+
+for r in crew:beta other:alpha alpha; do
+  ( setup; p="$(fake_plugin)"; role "$p" alpha high; role "$p" beta ""; d="$(newtmp)"
+    out="$("$p/skills/spawn-worker/scripts/spawn-worker.sh" --role "$r" --name w1 --dir "$d" 2>&1)"; rc=$?
+    check "[ae-8g7] --role $r still spawns" "$rc" 0
+    lacks "[ae-8g7] --role $r gets no --effort" "$(typed)" "--effort"
+    has   "[ae-8g7] --role $r runs at the machine default" "$out" "effort=machine default (default)"
+  )
+done
+
+( setup; p="$(fake_plugin)"; role "$p" alpha "high' --dangerously-skip-permissions '"; d="$(newtmp)"
+  out="$("$p/skills/spawn-worker/scripts/spawn-worker.sh" --role crew:alpha --name w1 --dir "$d" 2>&1)"; rc=$?
+  check "[ae-8g7] an effort from a role file is validated like the flag" "$rc" 2
+  check "[ae-8g7] and nothing is opened or typed" "$(typed)$(panels)" ""
+)
+
 pass="$(grep -c '^ok$' "$RESULTS")"; fail="$(grep -c '^fail$' "$RESULTS")"
 echo
 echo "${pass} passed, ${fail} failed"

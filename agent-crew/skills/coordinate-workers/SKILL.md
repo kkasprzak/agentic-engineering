@@ -23,9 +23,15 @@ Task items are where work and findings live. Messages are for pointing at them.
 ## Workers are sessions, not subagents
 
 **Load the skill that spawns worker sessions before dispatching anything.** Every tracker item goes
-to a session it starts — never to the `Agent` tool, even though that tool lists the same roles as subagent types and
-is the shorter path. A subagent has no address to send a correction to, cannot be cleared between
-tasks, has no panel to check when it stops, and runs where nobody but you can see it.
+to a session it starts — never to the `Agent` tool, even though that tool lists the same roles as
+subagent types and is the shorter path. A subagent has no address to send a correction to, cannot
+be cleared between tasks, has no panel to check when it stops, and runs where nobody but you can
+see it.
+
+**Choose each worker's role from what that skill lists, by description.** It prints the roles it
+ships and what each one is for. Match the item to the description rather than to a role name you
+remember: names change, and the description is the role's own statement of when to use it and when
+not to. Say which role you picked for each item, and why, before spawning.
 
 Work that is not a tracker item — searching the codebase, an independent review of something you
 wrote — may still use subagents.
@@ -43,9 +49,9 @@ play, the acceptance criteria, and link outward for the reasoning rather than re
 
 **When you cannot write the item yet, that is the signal to dispatch differently.** If you do not
 know which files are in play, or whether the change can land in steps, or whether the task as stated
-is even the right one, you are not ready to brief a developer — and briefing one anyway produces a
-confident implementation of the wrong shape. Send a `solution-architect` first. Its output is the
-items the rest of this loop consumes: an approach, a sequence, what was rejected and why, and the
+is even the right one, you are not ready to brief an implementer — and briefing one anyway produces
+a confident implementation of the wrong shape. Send the role whose description is shaping the work
+before anyone implements it. Its output is the items the rest of this loop consumes: an approach, a sequence, what was rejected and why, and the
 questions it could not settle. Verify those the same way you verify any other report; a plan is no
 more trustworthy for being about the future.
 
