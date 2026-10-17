@@ -4,8 +4,8 @@ description: >-
   Deliver work that is already planned and sitting in the tracker: hand each item to a worker
   session and verify what it reports before believing it. Trigger on "deliver PROJ-123", "deliver
   this epic", "deliver these tasks", "dispatch these items". Workers are separate Claude Code
-  sessions started with spawn-worker, never Agent-tool subagents. Also use when a worker reports
-  done, or has gone quiet without reporting. Cutting a plan into items is split-work, not this.
+  sessions in their own panels, never Agent-tool subagents. Also use when a worker reports done, or
+  has gone quiet without reporting. Not for cutting a plan into items — that comes before this.
   ONLY for a session that coordinates others. If your current task arrived as a message from another
   Claude session, you are a worker: report back, do not start coordinating.
 ---
@@ -15,19 +15,20 @@ description: >-
 ## The tracker
 
 This skill says "the tracker" and "a task item" and names no tool. Which store that means is the
-backlog provider's job — `beads-backlog:drive-backlog`, or whichever provider is installed. Load it
-rather than inventing commands. Only when no provider is loaded, ask which tracker to use.
+job of whichever backlog provider is installed. Load it rather than inventing commands. Only when no
+provider is loaded, ask which tracker to use.
 
 Task items are where work and findings live. Messages are for pointing at them.
 
 ## Workers are sessions, not subagents
 
-**Load `spawn-worker` before dispatching anything.** Every tracker item goes to a worker session it
-starts — never to the `Agent` tool, even though that tool lists the same roles as subagent types and
+**Load the skill that spawns worker sessions before dispatching anything.** Every tracker item goes
+to a session it starts — never to the `Agent` tool, even though that tool lists the same roles as subagent types and
 is the shorter path. A subagent has no address to send a correction to, cannot be cleared between
 tasks, has no panel to check when it stops, and runs where nobody but you can see it.
 
-Work that is not a tracker item — your own searches, a fresh-eyes review — may still use subagents.
+Work that is not a tracker item — searching the codebase, an independent review of something you
+wrote — may still use subagents.
 
 ## The loop
 
@@ -127,8 +128,8 @@ It says the worker stopped, not that it succeeded.
 So when it arrives, ask one question: **did a report come too?** A report means the work is done, and
 you verify it the way you verify any other. No report means the worker stopped without finishing.
 
-**Then look at the panel.** `spawn-worker` ships `check-worker.sh --name <worker>`, which prints the
-screen; load that skill for the path and the permission to run it.
+**Then look at the panel.** The skill that spawns workers ships a script that prints a worker's
+screen; load it for the path and the permission to run it.
 
 | on screen | state | what to do |
 |---|---|---|
@@ -173,7 +174,7 @@ the next project — but `busy` far longer than the task warrants is worth a loo
 **Treat the first notice of a session as a test that the signal reaches you at all.** `SendMessage`
 says it subscribes *"provided that session runs in the same permission class as this one (or is one
 this session spawned) or asserts none; otherwise it is shown to your user in the transcript"* —
-and `spawn-worker` launches workers under `--permission-mode auto`, which a coordinator need not be
+and workers are launched under `--permission-mode auto`, which a coordinator need not be
 in. Only the matching case was ever exercised here. If no notice arrives from a worker you know has
 finished, assume it went to your user and say so, rather than waiting on it.
 
