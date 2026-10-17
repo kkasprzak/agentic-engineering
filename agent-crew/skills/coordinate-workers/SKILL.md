@@ -1,12 +1,11 @@
 ---
 name: coordinate-workers
 description: >-
-  Run work across several Claude Code worker sessions — write the task down, dispatch it, check what
-  comes back, and fold it in. Use when you are handing work to other sessions and need it to survive
-  their context being wiped, when a worker reports done and you have to decide whether to believe it,
-  when deciding what can run in parallel, or when a worker has stopped mid-task without reporting —
-  including one blocked by a connection error or a dialog nobody will answer. Pairs with
-  spawn-worker, which starts and retires the sessions themselves.
+  Deliver work that is already planned and sitting in the tracker: hand each item to a worker
+  session and verify what it reports before believing it. Trigger on "deliver PROJ-123", "deliver
+  this epic", "deliver these tasks", "dispatch these items". Workers are separate Claude Code
+  sessions started with spawn-worker, never Agent-tool subagents. Also use when a worker reports
+  done, or has gone quiet without reporting. Cutting a plan into items is split-work, not this.
   ONLY for a session that coordinates others. If your current task arrived as a message from another
   Claude session, you are a worker: report back, do not start coordinating.
 ---
@@ -15,16 +14,20 @@ description: >-
 
 ## The tracker
 
-**Name your tracker here.** Everything below says "the tracker" and "a task item"; this paragraph is
-the only place in the skill that names a real tool, so binding it to yours is a one-paragraph edit
-rather than a search through the text. Write which tool it is and how to drive it — for example
-*"the tracker is Linear, reached through the Linear MCP server"*, or *"the tracker is beads, driven
-by the `bd` command; run `bd prime` once for its command reference"*.
-
-Until you edit this paragraph, a coordinator will have to ask which tracker to use, which is the
-cheapest possible failure and the reason this is a placeholder rather than a default.
+This skill says "the tracker" and "a task item" and names no tool. Which store that means is the
+backlog provider's job — `beads-backlog:drive-backlog`, or whichever provider is installed. Load it
+rather than inventing commands. Only when no provider is loaded, ask which tracker to use.
 
 Task items are where work and findings live. Messages are for pointing at them.
+
+## Workers are sessions, not subagents
+
+**Load `spawn-worker` before dispatching anything.** Every tracker item goes to a worker session it
+starts — never to the `Agent` tool, even though that tool lists the same roles as subagent types and
+is the shorter path. A subagent has no address to send a correction to, cannot be cleared between
+tasks, has no panel to check when it stops, and runs where nobody but you can see it.
+
+Work that is not a tracker item — your own searches, a fresh-eyes review — may still use subagents.
 
 ## The loop
 
