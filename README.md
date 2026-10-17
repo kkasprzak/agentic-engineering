@@ -31,7 +31,7 @@ their context is wiped. You start one, give it work, check what comes back, and 
 
 | component | what it does |
 |---|---|
-| `coordinate-workers` *(skill)* | The coordinator side. How to write a task brief which still makes sense to a session with no memory of the conversation. What to put in the message and what to leave in the tracker. How to verify a report instead of believing it. When parallel work really helps, and what to do when a worker goes quiet. |
+| `coordinate-workers` *(skill)* | The coordinator side, triggered by "deliver PROJ-123". Every tracker item goes to a worker session started by `spawn-worker`, never to a subagent. How to write a task brief which still makes sense to a session with no memory of the conversation. What to put in the message and what to leave in the tracker. How to verify a report instead of believing it. When parallel work really helps, and what to do when a worker goes quiet. |
 | `split-work` *(skill)* | The step between a decided plan and a plan you can dispatch. It turns a settled approach into items ordered by dependency. Each item can be started by a session which never saw the discussion. Size comes from how much an agent must hold in its head, not from hours. Items are checked against work which already exists, and shown for approval before anything is created. It decides what the items are. `coordinate-workers` says how to write one, and a backlog plugin creates them. |
 | `spawn-worker` *(skill)* | The session mechanics. Start a worker in a cmux panel with a given role, clear its conversation between tasks but keep its name and address, and retire it. It refuses to drop a worktree which still holds uncommitted or unpushed work. |
 | `agent-crew:developer` *(role)* | Implements one task end to end and reports honestly. Full builds, not filtered ones. Counts read from the build summary, with the number from before. A fix comes with a test which would catch the bug. When the brief turns out to be wrong, it stops instead of guessing. |
@@ -152,14 +152,15 @@ exits instead of failing in the middle.
 brew install --cask cmux
 ```
 
-The coordination skill and the roles have no dependencies and work anywhere.
+The roles and `split-work` have no dependencies and work anywhere. `coordinate-workers` dispatches
+through `spawn-worker`, so it needs cmux too.
 
-## Configure your tracker
+## Choose your tracker
 
 `coordinate-workers` does not name a tracker on purpose. It says "the tracker" and "a task item"
-everywhere, and binds to a real tool in exactly one paragraph at the top of the skill. Edit that
-paragraph to name yours (Linear, Jira, GitHub issues, beads, a markdown file). Everything else keeps
-working without changes, and this is the point of keeping the binding in one place.
+everywhere, and loads whichever backlog plugin is installed to make that real. Install
+`beads-backlog` for beads, or write a provider for your own store. Nothing in the crew changes.
+Without a provider, the coordinator asks which tracker to use.
 
 ## What it does not do, on purpose
 
