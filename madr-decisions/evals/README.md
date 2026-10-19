@@ -90,6 +90,13 @@ gave (`03`).
 `{source: file, path: ...}` does not accept a glob, and a new record's filename depends on the title
 the agent picks, so the trace is the only place those checks can read the file's content from.
 
+`skill-fired` is an indicator, not part of the score, and says so with `arm: with-only`. Under the
+default ablation the runner leaves a `tool_used: Skill` grader out of the score unless it carries
+`arm: both`, and here that is the right call. This suite grades outcomes. Cases `04` and `05` can be
+won by the hook alone, without the skill loading, and a scored "skill fired" would only widen Δ by a
+check the no-plugin arm cannot pass by construction. `input_match: record-decision` makes the
+indicator mean this skill rather than any skill.
+
 ## What this suite does not measure
 
 * **Long-session drift.** The failure this plugin was written after happened mid-session in a large
