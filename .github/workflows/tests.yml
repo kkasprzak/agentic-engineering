@@ -1,0 +1,163 @@
+name: tests
+
+# On the pull request, because that is where a change can still be stopped.
+# `synchronize` is the one that matters: it fires on every push to an open PR,
+# so a fix made after review is checked like the first commit was.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# These jobs check out the pull request's own code and run it. Least privilege
+# is therefore the default rather than a precaution: nothing here needs to write
+# anything back, and a token that can write is a token a test script can use.
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    name: syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: shell scripts parse
+        run: |
+          set -e
+          found=0
+          while IFS= read -r f; do
+            bash -n "$f"
+            found=$((found + 1))
+          done < <(find . -name '*.sh' -not -path './.git/*')
+          # A loop that matched nothing would pass in silence, which is how a
+          # check stops checking without anybody noticing.
+          [ "$found" -gt 0 ] || { echo "no shell scripts found — the glob is wrong" >&2; exit 1; }
+          echo "$found shell scripts parse"
+
+      - name: json parses
+        run: |
+          set -e
+          found=0
+          while IFS= read -r f; do
+            python3 -m json.tool "$f" > /dev/null
+            found=$((found + 1))
+          done < <(find . -name '*.json' -not -path './.git/*')
+          [ "$found" -gt 0 ] || { echo "no json found — the glob is wrong" >&2; exit 1; }
+          echo "$found json files parse"
+
+      - name: python parses
+        run: |
+          set -e
+          found=0
+          while IFS= read -r f; do
+            python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f"
+            found=$((found + 1))
+          done < <(find . -name '*.py' -not -path './.git/*')
+          [ "$found" -gt 0 ] || { echo "no python found — the glob is wrong" >&2; exit 1; }
+          echo "$found python files parse"
+
+      - name: scripts stay executable
+        run: |
+          set -e
+          bad=0
+          while IFS= read -r f; do
+            [ -x "$f" ] || { echo "not executable: $f"; bad=1; }
+          done < <(find . -name '*.sh' -not -path './.git/*')
+          [ "$bad" -eq 0 ]
+
+  suites:
+    # Both real bugs this repository has shipped lived in the difference
+    # between platforms: `\r` means carriage return to BSD grep and a literal
+    # `r` to GNU grep, and a glob that is linear on bash 5 backtracks on the
+    # bash 3.2 macOS still ships. Neither was findable on one machine.
+    name: suites (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: GNU
+          - os: macos-latest
+            label: BSD, bash 3.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: what this is running on
+        run: |
+          /bin/bash --version | head -1
+          grep --version 2>/dev/null | head -1 || echo "grep: BSD (no --version)"
+          python3 --version
+          perl --version | sed -n '2p'
+
+      # `/bin/bash` rather than the shebang: on macOS that is 3.2, which is the
+      # version worth testing, and PATH may hold a newer one from Homebrew.
+      - name: madr-decisions
+        run: |
+          set -e
+          for suite in madr-decisions/tests/test-*.sh; do
+            echo "--- $suite"
+            /bin/bash "$suite"
+          done
+
+  busybox:
+    # Alpine is the third userland: BusyBox grep, awk, sed and diff. The
+    # one-line promise was passing vacuously here once, because BusyBox diff
+    # only speaks unified and the assertion counted `^[<>]`.
+    name: suites (BusyBox)
+    runs-on: ubuntu-latest
+    container: alpine:3.20
+    steps:
+      - name: dependencies
+        run: apk add --no-cache bash perl python3 git
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: what this is running on
+        run: |
+          /bin/bash --version | head -1
+          busybox | head -1
+          python3 --version
+
+      - name: madr-decisions
+        run: |
+          set -e
+          for suite in madr-decisions/tests/test-*.sh; do
+            echo "--- $suite"
+            /bin/bash "$suite"
+          done
+
+  manifests:
+    name: manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: install the CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # `claude plugin validate` needs no account: it parses the manifest and
+      # checks every component path resolves inside the plugin.
+      - name: every plugin validates
+        run: |
+          set -e
+          found=0
+          for manifest in */.claude-plugin/plugin.json; do
+            plugin=$(dirname "$(dirname "$manifest")")
+            echo "--- $plugin"
+            claude plugin validate "./$plugin"
+            found=$((found + 1))
+          done
+          [ "$found" -gt 0 ] || { echo "no plugins found — the glob is wrong" >&2; exit 1; }
+          echo "$found plugins validate"
